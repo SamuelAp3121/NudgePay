@@ -1,13 +1,14 @@
 #Go
-backend/main
-backend/*.exe
-backend/*.out
+RECORDATORIOS_PERSONAL/main
+RECORDATORIOS_PERSONAL/*.exe
+RECORDATORIOS_PERSONAL/*.out
 
 #react
-frontend/node_modules/
-frontend/build/
-frontend/dist/
+RECORDATORIOS_PERSONAL_FRONT/recordatorio_personal_front/node_modules/
+RECORDATORIOS_PERSONAL_FRONT/recordatorio_personal_front/build/
+RECORDATORIOS_PERSONAL_FRONT/recordatorio_personal_front/dist/
 
 #variables de entorno
 .env
 *.env
+.env.local
