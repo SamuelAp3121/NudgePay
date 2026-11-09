@@ -11,4 +11,5 @@ RECORDATORIOS_PERSONAL_FRONT/recordatorio_personal_front/dist/
 #variables de entorno
 .env
 *.env
-.env.local
+.env.local.env
+.env
