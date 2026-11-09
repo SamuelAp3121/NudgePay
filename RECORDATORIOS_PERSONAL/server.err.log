@@ -1,0 +1,2 @@
+2026/11/07 12:28:24 ⚡ Conexión exitosa a Supabase PostgreSQL
+2026/11/07 12:30:39 ⚠️  No se pudo enviar el email de bienvenida a qa.pagos.1794072638379@example.com: Resend respondió HTTP 422: {"message":"Invalid `to` field. Please use our testing email address instead of domains like `example.com`. See our documentation for more information.","name":"validation_error","statusCode":422}
