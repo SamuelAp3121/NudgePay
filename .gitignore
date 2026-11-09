@@ -1,0 +1,13 @@
+#Go
+backend/main
+backend/*.exe
+backend/*.out
+
+#react
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+
+#variables de entorno
+.env
+*.env
