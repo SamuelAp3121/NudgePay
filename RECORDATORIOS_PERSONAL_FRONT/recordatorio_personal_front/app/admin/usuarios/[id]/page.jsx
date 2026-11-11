@@ -16,6 +16,7 @@ import {
   IconTrash,
 } from '@/components/icons';
 import {
+  adminActualizarWhatsAppUsuario,
   adminCambiarPlan,
   adminCambiarRol,
   adminCerrarSesiones,
@@ -66,6 +67,7 @@ export default function AdminUsuarioDetallePage() {
   const [passwordModal, setPasswordModal] = useState(false);
   const [passwordNueva, setPasswordNueva] = useState('');
   const [motivoSuspension, setMotivoSuspension] = useState('');
+  const [waTelefono, setWaTelefono] = useState('');
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -159,6 +161,7 @@ export default function AdminUsuarioDetallePage() {
   }
 
   const usuario = data?.usuario || {};
+  const whatsapp = usuario.whatsapp || {};
   const facturas = data?.facturas || [];
   const pagos = data?.pagos || [];
   const suscripciones = data?.suscripciones || [];
@@ -581,6 +584,60 @@ export default function AdminUsuarioDetallePage() {
                 </button>
               </div>
             )}
+          </section>
+
+          <section className="card p-6">
+            <h3 className="text-base font-semibold text-slate-900">WhatsApp</h3>
+            <p className="mt-0.5 text-sm text-slate-500">
+              Activa el canal y fija el número de contacto de la cuenta.
+            </p>
+            <div className="mt-4 space-y-2">
+              <input
+                type="tel"
+                value={waTelefono || whatsapp.telefono || ''}
+                onChange={(event) => setWaTelefono(event.target.value)}
+                placeholder="573001234567"
+                className="input"
+              />
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() =>
+                    run(
+                      'wa-activar',
+                      () => adminActualizarWhatsAppUsuario(id, true, waTelefono || whatsapp.telefono || ''),
+                      'WhatsApp activado para esta cuenta.'
+                    )
+                  }
+                  disabled={Boolean(working)}
+                  className="btn-primary btn-sm"
+                >
+                  {working === 'wa-activar' ? <Spinner className="h-3.5 w-3.5" label="Guardando" /> : null}
+                  Activar WhatsApp
+                </button>
+                <button
+                  type="button"
+                  onClick={() =>
+                    run(
+                      'wa-desactivar',
+                      () => adminActualizarWhatsAppUsuario(id, false, waTelefono || whatsapp.telefono || ''),
+                      'WhatsApp desactivado para esta cuenta.'
+                    )
+                  }
+                  disabled={Boolean(working)}
+                  className="btn-secondary btn-sm"
+                >
+                  Desactivar
+                </button>
+              </div>
+              <p className="text-xs text-slate-400">
+                Estado actual:{' '}
+                <span className={whatsapp.activo ? 'font-semibold text-emerald-600' : 'font-semibold text-slate-500'}>
+                  {whatsapp.activo ? 'Activo' : 'Inactivo'}
+                </span>
+                {whatsapp.phone_number_id ? ` · Phone ID ${whatsapp.phone_number_id}` : ''}
+              </p>
+            </div>
           </section>
 
           <section className="card p-6">

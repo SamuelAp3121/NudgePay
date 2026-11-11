@@ -1,6 +1,6 @@
 'use client';
 
-import { IconCheck, IconClock, IconInbox, IconList, IconMail, IconTrash } from './icons';
+import { IconCheck, IconClock, IconInbox, IconList, IconMail, IconTrash, IconWhatsApp } from './icons';
 import { EmptyState, Spinner } from './ui';
 import { daysUntil, formatCurrency, formatDate } from '@/lib/format';
 
@@ -117,8 +117,10 @@ export default function FacturasTable({
   updatingId,
   deletingId,
   sendingId,
+  sendingWhatsAppId,
   onMarkPaid,
   onSendReminder,
+  onSendWhatsApp,
   onDelete,
   onCreate,
   onOpenCuotas,
@@ -149,7 +151,8 @@ export default function FacturasTable({
                 const isUpdating = updatingId === factura.id;
                 const isDeleting = deletingId === factura.id;
                 const isSending = sendingId === factura.id;
-                const busy = isUpdating || isDeleting || isSending;
+                const isSendingWA = sendingWhatsAppId === factura.id;
+                const busy = isUpdating || isDeleting || isSending || isSendingWA;
 
                 return (
                   <tr
@@ -218,6 +221,25 @@ export default function FacturasTable({
                                 <IconMail className="h-3.5 w-3.5 text-brand-600" />
                               )}
                               <span className="hidden 2xl:inline">Recordar</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => onSendWhatsApp(factura)}
+                              disabled={busy || !factura.telefono}
+                              className="btn-secondary btn-sm"
+                              aria-label={`Enviar recordatorio por WhatsApp a ${factura.cliente}`}
+                              title={
+                                factura.telefono
+                                  ? `Enviar recordatorio por WhatsApp a ${factura.telefono}`
+                                  : 'Esta factura no tiene teléfono de WhatsApp'
+                              }
+                            >
+                              {isSendingWA ? (
+                                <Spinner className="h-3.5 w-3.5" label="Enviando" />
+                              ) : (
+                                <IconWhatsApp className="h-3.5 w-3.5 text-emerald-600" />
+                              )}
+                              <span className="hidden 2xl:inline">WhatsApp</span>
                             </button>
                             <button
                               type="button"

@@ -103,6 +103,8 @@ export function normalizeFactura(factura) {
       factura?.cliente_nombre ?? factura?.cliente ?? factura?.nombre_cliente ?? factura?.client_name ?? '',
     email:
       factura?.cliente_email ?? factura?.email ?? factura?.client_email ?? '',
+    telefono: factura?.cliente_telefono ?? factura?.telefono ?? '',
+    canal: factura?.canal_recordatorio ?? 'email',
     concepto: factura?.concepto ?? '',
     tokenPublico: factura?.token_publico ?? '',
     mediosPago: {

@@ -160,6 +160,28 @@ export function enviarRecordatorio(id, options = {}) {
   return apiFetch(`/api/v1/facturas/${id}/recordatorio`, { ...options, method: 'POST' });
 }
 
+/** POST /api/v1/facturas/:id/recordatorio-whatsapp → envía el recordatorio por WhatsApp. */
+export function enviarRecordatorioWhatsApp(id, options = {}) {
+  return apiFetch(`/api/v1/facturas/${id}/recordatorio-whatsapp`, { ...options, method: 'POST' });
+}
+
+/* -------------------------------- WhatsApp -------------------------------- */
+
+/** GET /api/v1/whatsapp/config → configuración de WhatsApp del usuario. */
+export function getWhatsAppConfig(options = {}) {
+  return apiFetch('/api/v1/whatsapp/config', options);
+}
+
+/** PUT /api/v1/whatsapp/config → guarda credenciales de WhatsApp Business. */
+export function updateWhatsAppConfig(payload, options = {}) {
+  return apiFetch('/api/v1/whatsapp/config', { ...options, method: 'PUT', body: payload });
+}
+
+/** POST /api/v1/whatsapp/test → envía un mensaje de prueba por WhatsApp. */
+export function sendWhatsAppTest(telefono, options = {}) {
+  return apiFetch('/api/v1/whatsapp/test', { ...options, method: 'POST', body: { telefono } });
+}
+
 /** DELETE /api/v1/facturas/:id → elimina una factura. */
 export function deleteFactura(id, options = {}) {
   return apiFetch(`/api/v1/facturas/${id}`, { ...options, method: 'DELETE' });
@@ -438,5 +460,31 @@ export function adminCancelarSuscripcion(referencia, options = {}) {
   return apiFetch(`/api/v1/admin/suscripciones/${encodeURIComponent(referencia)}/cancelar`, {
     ...options,
     method: 'POST',
+  });
+}
+
+/* --------------------------- Admin: WhatsApp --------------------------- */
+
+/** GET /api/v1/admin/whatsapp/resumen → estado y métricas del canal WhatsApp. */
+export function adminWhatsAppResumen(options = {}) {
+  return apiFetch('/api/v1/admin/whatsapp/resumen', options);
+}
+
+/** GET /api/v1/admin/whatsapp/envios → histórico de envíos por WhatsApp. */
+export function adminListarEnviosWhatsApp(params = {}, options = {}) {
+  return apiFetch(`/api/v1/admin/whatsapp/envios${qs(params)}`, options);
+}
+
+/** POST /api/v1/admin/whatsapp/test → prueba con la configuración global. */
+export function adminWhatsAppTest(telefono, options = {}) {
+  return apiFetch('/api/v1/admin/whatsapp/test', { ...options, method: 'POST', body: { telefono } });
+}
+
+/** PATCH /api/v1/admin/usuarios/:id/whatsapp → activa/desactiva WhatsApp de una cuenta. */
+export function adminActualizarWhatsAppUsuario(id, activo, telefono = '', options = {}) {
+  return apiFetch(`/api/v1/admin/usuarios/${id}/whatsapp`, {
+    ...options,
+    method: 'PATCH',
+    body: { activo, telefono },
   });
 }

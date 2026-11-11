@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { IconBilling, IconCreditCard, IconDashboard, IconShield, IconUsers } from '@/components/icons';
+import { IconBilling, IconCreditCard, IconDashboard, IconShield, IconUsers, IconWhatsApp } from '@/components/icons';
 
 const TABS = [
   { href: '/admin', label: 'Resumen', Icon: IconDashboard, exact: true },
@@ -10,6 +10,7 @@ const TABS = [
   { href: '/admin/facturas', label: 'Facturas', Icon: IconBilling },
   { href: '/admin/pagos', label: 'Pagos', Icon: IconCreditCard },
   { href: '/admin/suscripciones', label: 'Suscripciones', Icon: IconShield },
+  { href: '/admin/whatsapp', label: 'WhatsApp', Icon: IconWhatsApp },
 ];
 
 /** Layout del panel de administración: cabecera + pestañas. */

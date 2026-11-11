@@ -6,6 +6,7 @@ import ApiKeyCard from '@/components/ApiKeyCard';
 import PasswordCard from '@/components/PasswordCard';
 import PlantillaEditor from '@/components/PlantillaEditor';
 import PlanUsageCard, { normalizePlan } from '@/components/PlanUsageCard';
+import WhatsAppCard from '@/components/WhatsAppCard';
 import { Alert, PageHeader, Spinner } from '@/components/ui';
 import { IconBilling, IconMail } from '@/components/icons';
 import { API_URL, getMe, sendTestEmail } from '@/lib/api';
@@ -181,6 +182,8 @@ export default function SettingsPage() {
               Ver planes
             </Link>
           </section>
+
+          <WhatsAppCard />
 
           <section className="card p-6">
             <div className="flex items-center gap-3">

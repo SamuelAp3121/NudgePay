@@ -11,6 +11,7 @@ import {
   IconRefresh,
   IconShield,
   IconUsers,
+  IconWhatsApp,
 } from '@/components/icons';
 import { adminResumen, adminSistema } from '@/lib/api';
 import { formatCurrency, formatDate } from '@/lib/format';
@@ -44,6 +45,7 @@ function EstadoSistema({ sistema }) {
     { label: 'Base de datos', ok: sistema?.base_datos },
     { label: 'Envío de emails', ok: sistema?.email },
     { label: 'Pasarela de pagos', ok: sistema?.pasarela },
+    { label: 'WhatsApp', ok: sistema?.whatsapp },
   ];
   return (
     <section className="card p-6">
@@ -107,6 +109,7 @@ export default function AdminResumenPage() {
   const facturas = data?.facturas || {};
   const suscripciones = data?.suscripciones || {};
   const pagos = data?.pagos || {};
+  const canales = data?.canales || {};
 
   return (
     <div>
@@ -183,6 +186,17 @@ export default function AdminResumenPage() {
           hint={`${usuarios.suspendidos ?? 0} cuentas suspendidas`}
           tone="amber"
           icon={<IconMail className="h-5 w-5" />}
+        />
+        <StatCard
+          label="WhatsApp (mes)"
+          value={canales.whatsapp_mes ?? '—'}
+          hint={
+            canales.whatsapp_configurado
+              ? `${canales.whatsapp_fallidos_mes ?? 0} fallidos · ${canales.email_mes ?? 0} por email`
+              : 'Canal sin configurar'
+          }
+          tone={canales.whatsapp_configurado ? 'emerald' : 'rose'}
+          icon={<IconWhatsApp className="h-5 w-5" />}
         />
       </div>
 

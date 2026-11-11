@@ -11,6 +11,7 @@ import {
   createFactura,
   deleteFactura,
   enviarRecordatorio,
+  enviarRecordatorioWhatsApp,
   listFacturas,
   marcarPagada,
 } from '@/lib/api';
@@ -53,6 +54,7 @@ export default function DashboardPage() {
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
   const [sendingId, setSendingId] = useState(null);
+  const [sendingWhatsAppId, setSendingWhatsAppId] = useState(null);
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [cuotasFactura, setCuotasFactura] = useState(null);
 
@@ -166,6 +168,29 @@ export default function DashboardPage() {
       });
     } finally {
       setSendingId(null);
+    }
+  };
+
+  const handleSendWhatsApp = async (factura) => {
+    setSendingWhatsAppId(factura.id);
+    try {
+      await enviarRecordatorioWhatsApp(factura.id);
+      setFacturas((prev) =>
+        prev.map((item) => (item.id === factura.id ? { ...item, notificado: true } : item))
+      );
+      setNotice({
+        type: 'success',
+        title: 'WhatsApp enviado',
+        message: `Se envió el recordatorio por WhatsApp a ${factura.telefono}.`,
+      });
+    } catch (error) {
+      setNotice({
+        type: 'error',
+        title: 'No se pudo enviar el WhatsApp',
+        message: error?.message || 'Revisa la configuración de WhatsApp en Ajustes.',
+      });
+    } finally {
+      setSendingWhatsAppId(null);
     }
   };
 
@@ -322,8 +347,10 @@ export default function DashboardPage() {
         updatingId={updatingId}
         deletingId={deletingId}
         sendingId={sendingId}
+        sendingWhatsAppId={sendingWhatsAppId}
         onMarkPaid={handleMarkPaid}
         onSendReminder={handleSendReminder}
+        onSendWhatsApp={handleSendWhatsApp}
         onDelete={(factura) => setConfirmDelete(factura)}
         onCreate={() => setModalOpen(true)}
         onOpenCuotas={(factura) => setCuotasFactura(factura)}

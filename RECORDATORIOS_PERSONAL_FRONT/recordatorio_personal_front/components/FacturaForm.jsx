@@ -7,6 +7,8 @@ import { CURRENCIES, DEFAULT_CURRENCY, currencySymbol, formatCurrency, todayISO 
 const INITIAL = {
   cliente_nombre: '',
   cliente_email: '',
+  cliente_telefono: '',
+  canal_recordatorio: 'email',
   concepto: '',
   monto: '',
   moneda: DEFAULT_CURRENCY,
@@ -23,6 +25,18 @@ const INITIAL = {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const MAX_CUOTAS = 60;
+
+/** Valida un teléfono internacional: solo dígitos, 8-15, sin '+' ni espacios. */
+function telefonoValido(valor) {
+  const limpio = String(valor || '').replace(/[\s\-()+]/g, '');
+  return /^[0-9]{8,15}$/.test(limpio);
+}
+
+const CANALES = [
+  { value: 'email', label: 'Solo email' },
+  { value: 'whatsapp', label: 'Solo WhatsApp' },
+  { value: 'ambos', label: 'Email y WhatsApp' },
+];
 
 function validate(values) {
   const errors = {};
@@ -55,6 +69,17 @@ function validate(values) {
 
   if (!values.fecha_vencimiento) {
     errors.fecha_vencimiento = 'Selecciona la fecha de vencimiento.';
+  }
+
+  const usaWhatsApp = values.canal_recordatorio === 'whatsapp' || values.canal_recordatorio === 'ambos';
+  if (usaWhatsApp) {
+    if (!values.cliente_telefono.trim()) {
+      errors.cliente_telefono = 'El teléfono es obligatorio para recordatorios por WhatsApp.';
+    } else if (!telefonoValido(values.cliente_telefono)) {
+      errors.cliente_telefono = 'Usa el formato internacional sin +, por ejemplo 573001234567.';
+    }
+  } else if (values.cliente_telefono.trim() && !telefonoValido(values.cliente_telefono)) {
+    errors.cliente_telefono = 'Usa el formato internacional sin +, por ejemplo 573001234567.';
   }
 
   return errors;
@@ -97,6 +122,8 @@ export default function FacturaForm({ onSubmit, onCancel }) {
       await onSubmit({
         cliente_nombre: values.cliente_nombre.trim(),
         cliente_email: values.cliente_email.trim().toLowerCase(),
+        cliente_telefono: values.cliente_telefono.replace(/[\s\-()+]/g, ''),
+        canal_recordatorio: values.canal_recordatorio,
         concepto: values.concepto.trim(),
         monto: Number(Number(values.monto).toFixed(2)),
         moneda: values.moneda,
@@ -177,6 +204,54 @@ export default function FacturaForm({ onSubmit, onCancel }) {
           aria-invalid={Boolean(errors.cliente_email)}
         />
         {errors.cliente_email && <p className="field-error">{errors.cliente_email}</p>}
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <div>
+          <label htmlFor="cliente_telefono" className="label">
+            WhatsApp del cliente
+          </label>
+          <input
+            id="cliente_telefono"
+            name="cliente_telefono"
+            type="tel"
+            inputMode="tel"
+            value={values.cliente_telefono}
+            onChange={handleChange('cliente_telefono')}
+            placeholder="573001234567"
+            className={`input ${errors.cliente_telefono ? 'input-error' : ''}`}
+            aria-invalid={Boolean(errors.cliente_telefono)}
+          />
+          {errors.cliente_telefono ? (
+            <p className="field-error">{errors.cliente_telefono}</p>
+          ) : (
+            <p className="mt-1.5 text-xs text-slate-400">
+              Formato internacional sin +. Obligatorio si envías por WhatsApp.
+            </p>
+          )}
+        </div>
+
+        <div>
+          <label htmlFor="canal_recordatorio" className="label">
+            Canal de recordatorio
+          </label>
+          <select
+            id="canal_recordatorio"
+            name="canal_recordatorio"
+            value={values.canal_recordatorio}
+            onChange={handleChange('canal_recordatorio')}
+            className="input"
+          >
+            {CANALES.map((canal) => (
+              <option key={canal.value} value={canal.value}>
+                {canal.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-1.5 text-xs text-slate-400">
+            Por dónde se avisará al cliente cuando venza cada cuota.
+          </p>
+        </div>
       </div>
 
       <div>
