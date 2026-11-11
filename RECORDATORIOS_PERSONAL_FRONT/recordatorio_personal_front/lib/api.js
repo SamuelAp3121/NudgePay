@@ -6,7 +6,7 @@
  * El header `X-API-Key` se mantiene solo para integraciones/scripts.
  */
 
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080').replace(/\/+$/, '');
+export const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://nudgepay-dz49.onrender.com').replace(/\/+$/, '');
 
 // Claves antiguas de API Key en localStorage (se limpian al iniciar sesión).
 export const API_KEY_STORAGE_KEY = 'invoice_reminder_api_key';
