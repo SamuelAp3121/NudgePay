@@ -19,14 +19,15 @@ func EnviarRecordatorio(c *fiber.Ctx) error {
 	usuarioID, _ := c.Locals("usuario_id").(string)
 	plan, _ := c.Locals("plan").(string)
 
-	var nombre, email, estado, moneda string
+	var nombre, email, telefono, concepto, estado, moneda, tokenPublico string
 	var montoTotal float64
 	var cuotas int
 	err := config.DB.QueryRow(
-		`SELECT cliente_nombre, cliente_email, estado, monto, COALESCE(moneda, 'COP'), COALESCE(cuotas, 1)
+		`SELECT cliente_nombre, cliente_email, COALESCE(cliente_telefono, ''), COALESCE(concepto, ''),
+		        estado, monto, COALESCE(moneda, 'COP'), COALESCE(cuotas, 1), COALESCE(token_publico, '')
 		   FROM facturas WHERE id = $1 AND usuario_id = $2`,
 		id, usuarioID,
-	).Scan(&nombre, &email, &estado, &montoTotal, &moneda, &cuotas)
+	).Scan(&nombre, &email, &telefono, &concepto, &estado, &montoTotal, &moneda, &cuotas, &tokenPublico)
 	if err == sql.ErrNoRows {
 		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "Factura no encontrada"})
 	}
@@ -79,6 +80,7 @@ func EnviarRecordatorio(c *fiber.Ctx) error {
 	}
 
 	if err := services.EnviarRecordatorioEmail(email, datos, plantilla); err != nil {
+		_ = RegistrarRecordatorioCanal(usuarioID, id, cuotaID, email, "email", "fallido", err.Error())
 		if errors.Is(err, services.ErrEmailNoConfigurado) {
 			return c.Status(http.StatusServiceUnavailable).JSON(fiber.Map{"error": err.Error()})
 		}
@@ -86,20 +88,48 @@ func EnviarRecordatorio(c *fiber.Ctx) error {
 	}
 
 	// Histórico de consumo (fuente de verdad del plan).
-	if err := RegistrarRecordatorioEnviado(usuarioID, id, cuotaID, email); err != nil {
+	if err := RegistrarRecordatorioCanal(usuarioID, id, cuotaID, email, "email", "enviado", ""); err != nil {
 		log.Printf("⚠️  No se pudo registrar el recordatorio enviado (usuario %s): %v", usuarioID, err)
 	}
 
 	_, _ = config.DB.Exec(`UPDATE cuotas SET notificado = true WHERE factura_id = $1 AND numero = $2`, id, numero)
 	_, _ = config.DB.Exec(`UPDATE facturas SET notificado = true WHERE id = $1`, id)
 
+	// Si la factura también pide WhatsApp, se intenta en el mismo envío.
+	whatsappEnviado := false
+	var whatsappError string
+	if telefono != "" {
+		cfg := configWhatsAppDelUsuario(usuarioID)
+		datosWA := services.DatosWhatsApp{
+			ClienteNombre: nombre,
+			Monto:         montoCuota,
+			Moneda:        moneda,
+			Fecha:         vencimiento,
+			CuotaNumero:   numero,
+			CuotasTotal:   cuotas,
+			MontoTotal:    montoTotal,
+			Concepto:      concepto,
+			EnlacePago:    EnlacePagoPublico(tokenPublico),
+		}
+		if errWA := services.EnviarRecordatorioWhatsApp(cfg, telefono, datosWA); errWA == nil {
+			whatsappEnviado = true
+			_ = RegistrarRecordatorioCanal(usuarioID, id, cuotaID, telefono, "whatsapp", "enviado", "")
+		} else {
+			whatsappError = errWA.Error()
+			_ = RegistrarRecordatorioCanal(usuarioID, id, cuotaID, telefono, "whatsapp", "fallido", whatsappError)
+		}
+	}
+
 	return c.JSON(fiber.Map{
-		"mensaje":         "Recordatorio enviado",
-		"id":              id,
-		"email":           email,
-		"cuota":           numero,
-		"enviado":         time.Now().Format(time.RFC3339),
-		"mensaje_enviado": services.RenderizarPlantilla(plantilla, datos),
+		"mensaje":           "Recordatorio enviado",
+		"id":                id,
+		"email":             email,
+		"telefono":          telefono,
+		"whatsapp_enviado":  whatsappEnviado,
+		"whatsapp_error":    whatsappError,
+		"cuota":             numero,
+		"enviado":           time.Now().Format(time.RFC3339),
+		"mensaje_enviado":   services.RenderizarPlantilla(plantilla, datos),
 	})
 }
 

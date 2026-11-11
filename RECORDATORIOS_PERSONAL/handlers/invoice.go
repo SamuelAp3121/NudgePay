@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"invoice-reminder/config"
 	"invoice-reminder/models"
+	"invoice-reminder/services"
 	"net/http"
 	"strings"
 	"time"
@@ -25,6 +26,7 @@ func ListarFacturas(c *fiber.Ctx) error {
 	                 f.pago_link, f.pago_qr, f.pago_transfer,
 	                 COALESCE(f.banco_nombre, ''), COALESCE(f.banco_cuenta, ''), COALESCE(f.banco_titular, ''),
 	                 COALESCE(f.qr_payload, ''), COALESCE(f.token_publico, ''),
+	                 COALESCE(f.cliente_telefono, ''), COALESCE(f.canal_recordatorio, 'email'),
 	                 COALESCE(c.pagadas, 0), COALESCE(c.pagado, 0)
 	          FROM facturas f
 	          LEFT JOIN (
@@ -52,6 +54,7 @@ func ListarFacturas(c *fiber.Ctx) error {
 			&f.Monto, &f.Moneda, &f.Cuotas, &f.FechaVencimiento, &f.Estado, &f.Notificado, &f.CreadoEn,
 			&f.PagoLink, &f.PagoQR, &f.PagoTransfer,
 			&f.BancoNombre, &f.BancoCuenta, &f.BancoTitular, &f.QRPayload, &f.TokenPublico,
+			&f.ClienteTelefono, &f.CanalRecordatorio,
 			&f.CuotasPagadas, &pagado); err != nil {
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Error leyendo las facturas", "detalle": err.Error()})
 		}
@@ -86,10 +89,28 @@ func CrearFactura(c *fiber.Ctx) error {
 
 	f.ClienteNombre = strings.TrimSpace(f.ClienteNombre)
 	f.ClienteEmail = strings.TrimSpace(strings.ToLower(f.ClienteEmail))
+	f.ClienteTelefono = strings.TrimSpace(f.ClienteTelefono)
 	f.Concepto = strings.TrimSpace(f.Concepto)
 
 	if f.ClienteNombre == "" || f.ClienteEmail == "" || f.Monto <= 0 || f.FechaVencimiento == "" {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "cliente_nombre, cliente_email, monto (> 0) y fecha_vencimiento son obligatorios"})
+	}
+
+	// Canal de recordatorio: email | whatsapp | ambos.
+	canal, canalOK := normalizarCanal(f.CanalRecordatorio)
+	if !canalOK {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "canal_recordatorio debe ser 'email', 'whatsapp' o 'ambos'"})
+	}
+	f.CanalRecordatorio = canal
+
+	// El teléfono es obligatorio si se va a notificar por WhatsApp.
+	if canal == "whatsapp" || canal == "ambos" {
+		if f.ClienteTelefono == "" {
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "cliente_telefono es obligatorio para recordatorios por WhatsApp"})
+		}
+		if !services.TelefonoValido(f.ClienteTelefono) {
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "cliente_telefono inválido. Usa el formato internacional sin '+', por ejemplo 573001234567."})
+		}
 	}
 	if len([]rune(f.Concepto)) > 300 {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "El concepto no puede superar 300 caracteres"})
@@ -133,16 +154,16 @@ func CrearFactura(c *fiber.Ctx) error {
 	}
 	defer tx.Rollback()
 
-	query := `INSERT INTO facturas (usuario_id, cliente_nombre, cliente_email, concepto, monto, moneda, cuotas,
+	query := `INSERT INTO facturas (usuario_id, cliente_nombre, cliente_email, cliente_telefono, concepto, monto, moneda, cuotas,
 	                               fecha_vencimiento, pago_link, pago_qr, pago_transfer,
-	                               banco_nombre, banco_cuenta, banco_titular, qr_payload, token_publico)
-	          VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9, $10, $11, NULLIF($12, ''), NULLIF($13, ''), NULLIF($14, ''), NULLIF($15, ''), $16)
+	                               banco_nombre, banco_cuenta, banco_titular, qr_payload, token_publico, canal_recordatorio)
+	          VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6, $7, $8, $9, $10, $11, $12, NULLIF($13, ''), NULLIF($14, ''), NULLIF($15, ''), NULLIF($16, ''), $17, $18)
 	          RETURNING id, estado, notificado, creado_en`
 
-	err = tx.QueryRow(query, usuarioID, f.ClienteNombre, f.ClienteEmail, f.Concepto, f.Monto, f.Moneda, f.Cuotas,
+	err = tx.QueryRow(query, usuarioID, f.ClienteNombre, f.ClienteEmail, f.ClienteTelefono, f.Concepto, f.Monto, f.Moneda, f.Cuotas,
 		f.FechaVencimiento, f.PagoLink, f.PagoQR, f.PagoTransfer,
 		strings.TrimSpace(f.BancoNombre), strings.TrimSpace(f.BancoCuenta), strings.TrimSpace(f.BancoTitular),
-		strings.TrimSpace(f.QRPayload), f.TokenPublico).
+		strings.TrimSpace(f.QRPayload), f.TokenPublico, f.CanalRecordatorio).
 		Scan(&f.ID, &f.Estado, &f.Notificado, &f.CreadoEn)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo registrar la factura", "detalle": err.Error()})

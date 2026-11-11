@@ -8,6 +8,7 @@ type Factura struct {
 	UsuarioID        string    `json:"usuario_id"`
 	ClienteNombre    string    `json:"cliente_nombre"`
 	ClienteEmail     string    `json:"cliente_email"`
+	ClienteTelefono  string    `json:"cliente_telefono"` // WhatsApp del cliente (formato internacional)
 	Concepto         string    `json:"concepto"` // Descripción de la deuda
 	Monto            float64   `json:"monto"`    // Monto total de la factura
 	Moneda           string    `json:"moneda"`
@@ -26,6 +27,9 @@ type Factura struct {
 	BancoTitular string `json:"banco_titular"`
 	QRPayload    string `json:"qr_payload"`    // Contenido del QR (llave Bre-B, etc.)
 	TokenPublico string `json:"token_publico"` // Enlace público para el cliente
+
+	// Canal por el que se envían los recordatorios: email | whatsapp | ambos
+	CanalRecordatorio string `json:"canal_recordatorio"`
 
 	// Campos calculados (solo lectura)
 	MontoCuota     float64 `json:"monto_cuota"`

@@ -133,6 +133,31 @@ func AdminResumen(c *fiber.Ctx) error {
 		"monto":     redondear2(montoPagos),
 	}
 
+	// Recordatorios por canal (email vs WhatsApp) del mes en curso.
+	var recordatoriosEmail, recordatoriosWhatsApp, whatsappFallidos int
+	_ = config.DB.QueryRow(
+		`SELECT COUNT(*) FROM recordatorios_enviados
+		  WHERE COALESCE(canal, 'email') = 'email'
+		    AND date_trunc('month', enviado_en) = date_trunc('month', CURRENT_TIMESTAMP)`,
+	).Scan(&recordatoriosEmail)
+	_ = config.DB.QueryRow(
+		`SELECT COUNT(*) FROM recordatorios_enviados
+		  WHERE canal = 'whatsapp' AND COALESCE(estado, 'enviado') = 'enviado'
+		    AND date_trunc('month', enviado_en) = date_trunc('month', CURRENT_TIMESTAMP)`,
+	).Scan(&recordatoriosWhatsApp)
+	_ = config.DB.QueryRow(
+		`SELECT COUNT(*) FROM recordatorios_enviados
+		  WHERE canal = 'whatsapp' AND estado = 'fallido'
+		    AND date_trunc('month', enviado_en) = date_trunc('month', CURRENT_TIMESTAMP)`,
+	).Scan(&whatsappFallidos)
+
+	resumen["canales"] = fiber.Map{
+		"email_mes":    recordatoriosEmail,
+		"whatsapp_mes": recordatoriosWhatsApp,
+		"whatsapp_fallidos_mes": whatsappFallidos,
+		"whatsapp_configurado":  services.WhatsAppConfigurado(),
+	}
+
 	// Últimos usuarios registrados (para el panel de inicio).
 	recientes := []fiber.Map{}
 	rows, err := config.DB.Query(
@@ -260,7 +285,8 @@ func AdminDetalleUsuario(c *fiber.Ctx) error {
 	id := c.Params("id")
 
 	var email, planActual, rolActual, motivo, plantilla string
-	var suspendido bool
+	var waTelefono, waPhoneID, waPlantilla, waIdioma string
+	var suspendido, waActivo bool
 	var creado string
 	var expira, ultimoAcceso sql.NullString
 	err := config.DB.QueryRow(
@@ -268,10 +294,14 @@ func AdminDetalleUsuario(c *fiber.Ctx) error {
 		        COALESCE(suspendido_motivo, ''), COALESCE(plantilla_mensaje, ''),
 		        to_char(creado_en, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
 		        to_char(plan_expira_en, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
-		        to_char(ultimo_acceso, 'YYYY-MM-DD"T"HH24:MI:SSOF')
+		        to_char(ultimo_acceso, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
+		        COALESCE(whatsapp_telefono, ''), COALESCE(whatsapp_phone_number_id, ''),
+		        COALESCE(whatsapp_template_name, ''), COALESCE(whatsapp_template_lang, ''),
+		        COALESCE(whatsapp_activo, FALSE)
 		   FROM usuarios WHERE id = $1`,
 		id,
-	).Scan(&email, &planActual, &rolActual, &suspendido, &motivo, &plantilla, &creado, &expira, &ultimoAcceso)
+	).Scan(&email, &planActual, &rolActual, &suspendido, &motivo, &plantilla, &creado, &expira, &ultimoAcceso,
+		&waTelefono, &waPhoneID, &waPlantilla, &waIdioma, &waActivo)
 	if err == sql.ErrNoRows {
 		return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "Usuario no encontrado"})
 	}
@@ -286,6 +316,10 @@ func AdminDetalleUsuario(c *fiber.Ctx) error {
 		"plan_expira_en": expira.String, "ultimo_acceso": ultimoAcceso.String,
 		"recordatorios_usados": RecordatoriosUsadosMes(id),
 		"limite_recordatorios": limiteDelPlan(planActual),
+		"whatsapp": fiber.Map{
+			"activo": waActivo, "telefono": waTelefono, "phone_number_id": waPhoneID,
+			"template_name": waPlantilla, "template_lang": waIdioma,
+		},
 	}
 
 	// Facturas del usuario (con totales de cuotas).
@@ -706,6 +740,7 @@ func AdminListarFacturas(c *fiber.Ctx) error {
 	                 COALESCE(f.concepto, ''), f.monto, COALESCE(f.moneda, 'COP'),
 	                 COALESCE(f.cuotas, 1), f.fecha_vencimiento, f.estado, f.notificado,
 	                 to_char(f.creado_en, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
+	                 COALESCE(f.cliente_telefono, ''), COALESCE(f.canal_recordatorio, 'email'),
 	                 COALESCE(c.pagadas, 0), COALESCE(c.pagado, 0)
 	            FROM facturas f
 	            JOIN usuarios u ON u.id = f.usuario_id
@@ -729,16 +764,18 @@ func AdminListarFacturas(c *fiber.Ctx) error {
 	facturas := []fiber.Map{}
 	for rows.Next() {
 		var fid, uid, emailDueno, nombre, mail, concepto, moneda, vencimiento, estadoF, creada string
+		var telefono, canal string
 		var monto, pagado float64
 		var cuotas, pagadas int
 		var notificado bool
 		if err := rows.Scan(&fid, &uid, &emailDueno, &nombre, &mail, &concepto, &monto, &moneda,
-			&cuotas, &vencimiento, &estadoF, &notificado, &creada, &pagadas, &pagado); err != nil {
+			&cuotas, &vencimiento, &estadoF, &notificado, &creada, &telefono, &canal, &pagadas, &pagado); err != nil {
 			continue
 		}
 		facturas = append(facturas, fiber.Map{
 			"id": fid, "usuario_id": uid, "usuario_email": emailDueno,
 			"cliente_nombre": nombre, "cliente_email": mail, "concepto": concepto,
+			"cliente_telefono": telefono, "canal_recordatorio": canal,
 			"monto": monto, "moneda": moneda, "cuotas": cuotas, "cuotas_pagadas": pagadas,
 			"monto_pagado": redondear2(pagado), "monto_pendiente": redondear2(monto - pagado),
 			"fecha_vencimiento": vencimiento, "estado": estadoF, "notificado": notificado,
@@ -1135,6 +1172,7 @@ func AdminEstadoSistema(c *fiber.Ctx) error {
 		"base_datos":    dbOK,
 		"email":         emailOK,
 		"pasarela":      wompiOK,
+		"whatsapp":      services.WhatsAppConfigurado(),
 		"hora_servidor": time.Now().Format(time.RFC3339),
 	})
 }

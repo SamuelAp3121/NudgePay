@@ -77,8 +77,14 @@ func main() {
 	api.Post("/facturas/:id/cuotas/:numero/pagar", handlers.PagarCuota)
 	api.Post("/facturas/:id/pagar", handlers.MarcarPagada)
 	api.Post("/facturas/:id/recordatorio", handlers.EnviarRecordatorio)
+	api.Post("/facturas/:id/recordatorio-whatsapp", handlers.EnviarRecordatorioWhatsAppFactura)
 	api.Delete("/facturas/:id", handlers.EliminarFactura)
 	api.Post("/email/test", handlers.EnviarEmailPrueba)
+
+	// --- WhatsApp (recordatorios por WhatsApp Business) ---
+	api.Get("/whatsapp/config", handlers.ObtenerConfigWhatsApp)
+	api.Put("/whatsapp/config", handlers.ActualizarConfigWhatsApp)
+	api.Post("/whatsapp/test", handlers.EnviarWhatsAppPrueba)
 	api.Get("/billing/suscripcion", handlers.ObtenerSuscripcion)
 	api.Post("/billing/checkout", handlers.CrearCheckout)
 	api.Post("/billing/simular", handlers.SimularPagoPro)
@@ -113,6 +119,12 @@ func main() {
 	admin.Post("/suscripciones/:referencia/activar", handlers.AdminActivarSuscripcion)
 	admin.Post("/suscripciones/:referencia/cancelar", handlers.AdminCancelarSuscripcion)
 
+	// --- WhatsApp (panel de administración) ---
+	admin.Get("/whatsapp/resumen", handlers.AdminWhatsAppResumen)
+	admin.Get("/whatsapp/envios", handlers.AdminListarEnviosWhatsApp)
+	admin.Post("/whatsapp/test", handlers.AdminEnviarWhatsAppPrueba)
+	admin.Patch("/usuarios/:id/whatsapp", handlers.AdminActualizarWhatsAppUsuario)
+
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8080"
@@ -127,7 +139,9 @@ func procesarRecordatoriosDiarios() {
 
 	query := `SELECT cu.id, cu.numero, cu.monto, cu.fecha_vencimiento,
 	                 f.id, f.cliente_nombre, f.cliente_email, f.monto, COALESCE(f.moneda, 'COP'),
-	                 COALESCE(f.cuotas, 1), COALESCE(f.usuario_id::text, ''), COALESCE(u.plan, 'free')
+	                 COALESCE(f.cuotas, 1), COALESCE(f.usuario_id::text, ''), COALESCE(u.plan, 'free'),
+	                 COALESCE(f.cliente_telefono, ''), COALESCE(f.canal_recordatorio, 'email'),
+	                 COALESCE(f.concepto, ''), COALESCE(f.token_publico, '')
 	          FROM cuotas cu
 	          JOIN facturas f ON f.id = cu.factura_id
 	          LEFT JOIN usuarios u ON u.id = f.usuario_id
@@ -148,10 +162,12 @@ func procesarRecordatoriosDiarios() {
 	enviados := 0
 	for rows.Next() {
 		var cuotaID, facturaID, nombre, email, vencimiento, moneda, usuarioID, plan string
+		var telefono, canal, concepto, tokenPublico string
 		var numero, cuotas int
 		var montoCuota, montoTotal float64
 		if err := rows.Scan(&cuotaID, &numero, &montoCuota, &vencimiento,
-			&facturaID, &nombre, &email, &montoTotal, &moneda, &cuotas, &usuarioID, &plan); err != nil {
+			&facturaID, &nombre, &email, &montoTotal, &moneda, &cuotas, &usuarioID, &plan,
+			&telefono, &canal, &concepto, &tokenPublico); err != nil {
 			continue
 		}
 
@@ -176,17 +192,52 @@ func procesarRecordatoriosDiarios() {
 			MontoTotal:    montoTotal,
 		}
 
-		if errEmail := services.EnviarRecordatorioEmail(email, datos, plantilla); errEmail == nil {
-			// Historico de consumo: no se pierde al borrar facturas.
-			if err := handlers.RegistrarRecordatorioEnviado(usuarioID, facturaID, cuotaID, email); err != nil {
-				log.Printf("AVISO: no se pudo registrar el recordatorio enviado: %v", err)
+		// Canal configurado en la factura: email | whatsapp | ambos.
+		quiereEmail := canal == "email" || canal == "ambos"
+		quiereWhatsApp := (canal == "whatsapp" || canal == "ambos") && telefono != ""
+
+		algunoEnviado := false
+
+		if quiereEmail {
+			if errEmail := services.EnviarRecordatorioEmail(email, datos, plantilla); errEmail == nil {
+				algunoEnviado = true
+				if err := handlers.RegistrarRecordatorioCanal(usuarioID, facturaID, cuotaID, email, "email", "enviado", ""); err != nil {
+					log.Printf("AVISO: no se pudo registrar el recordatorio enviado: %v", err)
+				}
+				log.Printf("Recordatorio email enviado a %s (cuota %d/%d) por %s", email, numero, cuotas, services.FormatearMonto(montoCuota, moneda))
+			} else {
+				_ = handlers.RegistrarRecordatorioCanal(usuarioID, facturaID, cuotaID, email, "email", "fallido", errEmail.Error())
+				log.Printf("Error enviando email a %s: %v", email, errEmail)
 			}
+		}
+
+		if quiereWhatsApp {
+			cfg := services.WhatsAppConfigDesdeEntorno()
+			datosWA := services.DatosWhatsApp{
+				ClienteNombre: nombre,
+				Monto:         montoCuota,
+				Moneda:        moneda,
+				Fecha:         vencimiento,
+				CuotaNumero:   numero,
+				CuotasTotal:   cuotas,
+				MontoTotal:    montoTotal,
+				Concepto:      concepto,
+				EnlacePago:    handlers.EnlacePagoPublico(tokenPublico),
+			}
+			if errWA := services.EnviarRecordatorioWhatsApp(cfg, telefono, datosWA); errWA == nil {
+				algunoEnviado = true
+				_ = handlers.RegistrarRecordatorioCanal(usuarioID, facturaID, cuotaID, telefono, "whatsapp", "enviado", "")
+				log.Printf("Recordatorio WhatsApp enviado a %s (cuota %d/%d)", telefono, numero, cuotas)
+			} else {
+				_ = handlers.RegistrarRecordatorioCanal(usuarioID, facturaID, cuotaID, telefono, "whatsapp", "fallido", errWA.Error())
+				log.Printf("Error enviando WhatsApp a %s: %v", telefono, errWA)
+			}
+		}
+
+		if algunoEnviado {
 			_, _ = config.DB.Exec("UPDATE cuotas SET notificado = true WHERE id = $1", cuotaID)
 			_, _ = config.DB.Exec("UPDATE facturas SET notificado = true WHERE id = $1", facturaID)
 			enviados++
-			log.Printf("Recordatorio enviado a %s (cuota %d/%d) por %s", email, numero, cuotas, services.FormatearMonto(montoCuota, moneda))
-		} else {
-			log.Printf("Error enviando a %s: %v", email, errEmail)
 		}
 	}
 

@@ -28,11 +28,24 @@ func RecordatoriosUsadosMes(usuarioID string) int {
 
 // RegistrarRecordatorioEnviado guarda en el histórico cada recordatorio enviado.
 // Es la fuente de verdad del consumo del plan: no se borra al eliminar facturas.
+// El canal por defecto es 'email' (compatibilidad con llamadas antiguas).
 func RegistrarRecordatorioEnviado(usuarioID, facturaID, cuotaID, email string) error {
+	return RegistrarRecordatorioCanal(usuarioID, facturaID, cuotaID, email, "email", "enviado", "")
+}
+
+// RegistrarRecordatorioCanal guarda un recordatorio indicando canal, estado y error.
+// canal: email | whatsapp. estado: enviado | fallido.
+func RegistrarRecordatorioCanal(usuarioID, facturaID, cuotaID, destino, canal, estado, mensajeError string) error {
+	if canal == "" {
+		canal = "email"
+	}
+	if estado == "" {
+		estado = "enviado"
+	}
 	_, err := config.DB.Exec(
-		`INSERT INTO recordatorios_enviados (usuario_id, factura_id, cuota_id, email_destino)
-		 VALUES ($1, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, $4)`,
-		usuarioID, facturaID, cuotaID, email,
+		`INSERT INTO recordatorios_enviados (usuario_id, factura_id, cuota_id, email_destino, canal, estado, error)
+		 VALUES ($1, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, $4, $5, $6, NULLIF($7, ''))`,
+		usuarioID, facturaID, cuotaID, destino, canal, estado, mensajeError,
 	)
 	return err
 }
