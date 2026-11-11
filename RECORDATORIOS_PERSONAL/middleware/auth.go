@@ -16,25 +16,25 @@ const SessionCookieName = "ir_session"
 //  1. Cookie de sesión HttpOnly (la que usa el panel web).
 //  2. Header X-API-Key (solo para integraciones / scripts).
 //
-// Deja en el contexto: usuario_id, usuario_email y plan.
+// Deja en el contexto: usuario_id, usuario_email, plan y rol.
 func AuthMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
 		// 1) Sesión por cookie
 		if token := c.Cookies(SessionCookieName); token != "" {
 			var usuarioID, email string
-			var plan sql.NullString
+			var plan, rol sql.NullString
 			err := config.DB.QueryRow(
-				`SELECT u.id, u.email, u.plan
+				`SELECT u.id, u.email, u.plan, u.rol
 				   FROM sesiones s
 				   JOIN usuarios u ON u.id = s.usuario_id
 				  WHERE s.token = $1 AND s.expira_en > CURRENT_TIMESTAMP`,
 				token,
-			).Scan(&usuarioID, &email, &plan)
-
+			).Scan(&usuarioID, &email, &plan, &rol)
 			if err == nil {
 				c.Locals("usuario_id", usuarioID)
 				c.Locals("usuario_email", email)
 				c.Locals("plan", planOrFree(plan))
+				c.Locals("rol", rolOrUsuario(rol))
 				return c.Next()
 			}
 			if err != sql.ErrNoRows {
@@ -50,11 +50,11 @@ func AuthMiddleware() fiber.Handler {
 		}
 
 		var usuarioID, email string
-		var plan sql.NullString
+		var plan, rol sql.NullString
 		err := config.DB.QueryRow(
-			`SELECT id, email, plan FROM usuarios WHERE api_key = $1`,
+			`SELECT id, email, plan, rol FROM usuarios WHERE api_key = $1`,
 			apiKey,
-		).Scan(&usuarioID, &email, &plan)
+		).Scan(&usuarioID, &email, &plan, &rol)
 		if err == sql.ErrNoRows {
 			return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "API Key inválida"})
 		}
@@ -65,6 +65,7 @@ func AuthMiddleware() fiber.Handler {
 		c.Locals("usuario_id", usuarioID)
 		c.Locals("usuario_email", email)
 		c.Locals("plan", planOrFree(plan))
+		c.Locals("rol", rolOrUsuario(rol))
 		return c.Next()
 	}
 }
@@ -74,4 +75,11 @@ func planOrFree(plan sql.NullString) string {
 		return "free"
 	}
 	return plan.String
+}
+
+func rolOrUsuario(rol sql.NullString) string {
+	if rol.String == "" {
+		return "usuario"
+	}
+	return rol.String
 }

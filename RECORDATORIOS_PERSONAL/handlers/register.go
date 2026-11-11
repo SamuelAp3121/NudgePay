@@ -26,6 +26,11 @@ func generarAPIKey() (string, error) {
 	return "ir_live_" + hex.EncodeToString(buf), nil
 }
 
+// GenerarAPIKey expone la generación de claves para herramientas de administración.
+func GenerarAPIKey() (string, error) {
+	return generarAPIKey()
+}
+
 // RegistrarUsuario crea una cuenta con email + contraseña y abre la sesión.
 // POST /api/v1/register  { "email": "...", "password": "..." }
 func RegistrarUsuario(c *fiber.Ctx) error {

@@ -34,8 +34,15 @@ func main() {
 	// CORS: permite que el frontend de Next.js llame a la API desde otro origen.
 	app.Use(middleware.CORS())
 
+	// Health check: 200 si la API y la base de datos estan operativas (ideal para produccion).
 	app.Get("/health", func(c *fiber.Ctx) error {
-		return c.SendString("Servicio de Recordatorios OK")
+		if !config.DBDisponible() {
+			return c.Status(fiber.StatusServiceUnavailable).JSON(fiber.Map{
+				"status":   "error",
+				"database": "inaccesible",
+			})
+		}
+		return c.JSON(fiber.Map{"status": "ok", "database": "ok"})
 	})
 	app.Get("/", func(c *fiber.Ctx) error {
 		return c.SendString("Bienvenido al servicio de recordatorios de facturas.")
@@ -76,6 +83,35 @@ func main() {
 	api.Post("/billing/checkout", handlers.CrearCheckout)
 	api.Post("/billing/simular", handlers.SimularPagoPro)
 	api.Post("/billing/cancelar", handlers.CancelarSuscripcion)
+
+	// --- Panel de administracion (soporte): requiere rol = 'admin' ---
+	admin := app.Group("/api/v1/admin", middleware.AuthMiddleware(), middleware.AdminMiddleware())
+	admin.Get("/resumen", handlers.AdminResumen)
+	admin.Get("/sistema", handlers.AdminEstadoSistema)
+	admin.Get("/auditoria", handlers.AdminAuditoria)
+
+	admin.Get("/usuarios", handlers.AdminListarUsuarios)
+	admin.Get("/usuarios/:id", handlers.AdminDetalleUsuario)
+	admin.Patch("/usuarios/:id/plan", handlers.AdminCambiarPlan)
+	admin.Patch("/usuarios/:id/suspender", handlers.AdminSuspenderUsuario)
+	admin.Patch("/usuarios/:id/rol", handlers.AdminCambiarRol)
+	admin.Post("/usuarios/:id/password", handlers.AdminResetPassword)
+	admin.Post("/usuarios/:id/cerrar-sesiones", handlers.AdminCerrarSesiones)
+	admin.Post("/usuarios/:id/impersonar", handlers.AdminImpersonar)
+	admin.Post("/salir-impersonacion", handlers.AdminSalirImpersonacion)
+
+	admin.Get("/facturas", handlers.AdminListarFacturas)
+	admin.Get("/facturas/:id/cuotas", handlers.AdminCuotasFactura)
+	admin.Post("/facturas/:id/cuotas/:numero/pagar", handlers.AdminMarcarCuotaPagada)
+	admin.Post("/facturas/:id/cuotas/:numero/revertir", handlers.AdminRevertirCuota)
+	admin.Post("/facturas/:id/pagar", handlers.AdminMarcarFacturaPagada)
+	admin.Delete("/facturas/:id", handlers.AdminEliminarFactura)
+
+	admin.Get("/pagos", handlers.AdminListarPagos)
+
+	admin.Get("/suscripciones", handlers.AdminListarSuscripciones)
+	admin.Post("/suscripciones/:referencia/activar", handlers.AdminActivarSuscripcion)
+	admin.Post("/suscripciones/:referencia/cancelar", handlers.AdminCancelarSuscripcion)
 
 	port := os.Getenv("PORT")
 	if port == "" {

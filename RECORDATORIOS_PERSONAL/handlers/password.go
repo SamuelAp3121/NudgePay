@@ -16,6 +16,11 @@ func hashearPassword(password string) (string, error) {
 	return string(hash), nil
 }
 
+// HashearPassword expone el hash bcrypt para herramientas de administración.
+func HashearPassword(password string) (string, error) {
+	return hashearPassword(password)
+}
+
 // verificarPassword compara una contraseña en claro con su hash bcrypt.
 func verificarPassword(password, hash string) bool {
 	return bcrypt.CompareHashAndPassword([]byte(hash), []byte(password)) == nil

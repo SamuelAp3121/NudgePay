@@ -74,9 +74,9 @@ func clearSessionCookie(c *fiber.Ctx) {
 // perfilUsuario arma la respuesta de /me y /login.
 func perfilUsuario(usuarioID string) (fiber.Map, error) {
 	var email, apiKey string
-	var plan sql.NullString
-	err := config.DB.QueryRow(`SELECT email, api_key, plan FROM usuarios WHERE id = $1`, usuarioID).
-		Scan(&email, &apiKey, &plan)
+	var plan, rol sql.NullString
+	err := config.DB.QueryRow(`SELECT email, api_key, plan, rol FROM usuarios WHERE id = $1`, usuarioID).
+		Scan(&email, &apiKey, &plan, &rol)
 	if err != nil {
 		return nil, err
 	}
@@ -91,11 +91,16 @@ func perfilUsuario(usuarioID string) (fiber.Map, error) {
 		limite = -1
 	}
 
+	rolActual := rol.String
+	if rolActual == "" {
+		rolActual = "usuario"
+	}
 	return fiber.Map{
 		"id":                   usuarioID,
 		"email":                email,
 		"api_key":              apiKey,
 		"plan":                 planActual,
+		"rol":                  rolActual,
 		"recordatorios_usados": RecordatoriosUsadosMes(usuarioID),
 		"limite_recordatorios": limite,
 	}, nil
@@ -118,9 +123,10 @@ func Login(c *fiber.Ctx) error {
 	}
 
 	var usuarioID string
-	var hash sql.NullString
-	err := config.DB.QueryRow(`SELECT id, password_hash FROM usuarios WHERE lower(email) = $1`, email).
-		Scan(&usuarioID, &hash)
+	var hash, motivoSuspension sql.NullString
+	var suspendido bool
+	err := config.DB.QueryRow(`SELECT id, password_hash, suspendido, suspendido_motivo FROM usuarios WHERE lower(email) = $1`, email).
+		Scan(&usuarioID, &hash, &suspendido, &motivoSuspension)
 	if err == sql.ErrNoRows {
 		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "Email o contraseña incorrectos"})
 	}
@@ -137,6 +143,17 @@ func Login(c *fiber.Ctx) error {
 	if !verificarPassword(body.Password, hash.String) {
 		return c.Status(http.StatusUnauthorized).JSON(fiber.Map{"error": "Email o contraseña incorrectos"})
 	}
+	// Cuenta suspendida por un administrador: no puede iniciar sesión.
+	if suspendido {
+		motivo := strings.TrimSpace(motivoSuspension.String)
+		if motivo == "" {
+			motivo = "Contacta con soporte para más información."
+		}
+		return c.Status(http.StatusForbidden).JSON(fiber.Map{
+			"error": "Tu cuenta está suspendida. " + motivo,
+		})
+	}
+	_, _ = config.DB.Exec(`UPDATE usuarios SET ultimo_acceso = CURRENT_TIMESTAMP WHERE id = $1`, usuarioID)
 
 	token, err := crearSesion(usuarioID)
 	if err != nil {

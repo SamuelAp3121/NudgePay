@@ -37,6 +37,11 @@ type ResendPayload struct {
 	HTML    string   `json:"html"`
 }
 
+// EmailConfigurado indica si hay una API Key de Resend real (para el panel de admin).
+func EmailConfigurado() bool {
+	return emailConfigurado()
+}
+
 // emailConfigurado indica si hay una API Key de Resend real.
 func emailConfigurado() bool {
 	key := strings.TrimSpace(os.Getenv("RESEND_API_KEY"))
@@ -176,18 +181,18 @@ func EnviarRecordatorioEmail(clienteEmail string, datos DatosRecordatorio, plant
 func EnviarBienvenidaEmail(email string) error {
 	mensajeHTML := `
 		<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0f172a">
-			<h2 style="color:#1d36d8">¡Bienvenido a NudgePay!</h2>
+			<h2 style="color:#1d36d8">¡Bienvenido a ToquePay!</h2>
 			<p>Tu cuenta está lista. Ya puedes iniciar sesión con tu email y la contraseña que elegiste.</p>
 			<p>Desde el panel podrás crear facturas (de pago único o por cuotas) y enviar recordatorios automáticos a tus clientes.</p>
 			<br>
-			<p>Saludos,<br>Equipo de NudgePay</p>
+			<p>Saludos,<br>Equipo de ToquePay</p>
 		</div>
 	`
 
 	return enviarEmail(ResendPayload{
 		From:    os.Getenv("FROM_EMAIL"),
 		To:      []string{email},
-		Subject: "Bienvenido a NudgePay",
+		Subject: "Bienvenido a ToquePay",
 		HTML:    mensajeHTML,
 	})
 }
@@ -197,18 +202,18 @@ func EnviarCodigoRecuperacionEmail(email, codigo string, minutos int) error {
 	mensajeHTML := fmt.Sprintf(`
 		<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0f172a">
 			<h2 style="color:#1d36d8">Recupera tu contraseña</h2>
-			<p>Usa este código para restablecer tu contraseña de NudgePay:</p>
+			<p>Usa este código para restablecer tu contraseña de ToquePay:</p>
 			<p style="font-size:32px;font-weight:bold;letter-spacing:8px;background:#f1f5f9;padding:16px;border-radius:8px;text-align:center">%s</p>
 			<p>El código caduca en %d minutos. Si no solicitaste este cambio, ignora este mensaje.</p>
 			<br>
-			<p>Saludos,<br>Equipo de NudgePay</p>
+			<p>Saludos,<br>Equipo de ToquePay</p>
 		</div>
 	`, codigo, minutos)
 
 	return enviarEmail(ResendPayload{
 		From:    os.Getenv("FROM_EMAIL"),
 		To:      []string{email},
-		Subject: "Tu código de recuperación - NudgePay",
+		Subject: "Tu código de recuperación - ToquePay",
 		HTML:    mensajeHTML,
 	})
 }
@@ -218,14 +223,14 @@ func EnviarEmailPrueba(destino string) error {
 	mensajeHTML := `
 		<div style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:0 auto;color:#0f172a">
 			<h2 style="color:#1d36d8">Correo de prueba ✅</h2>
-			<p>Si estás leyendo esto, el envío de emails de NudgePay está funcionando correctamente.</p>
+			<p>Si estás leyendo esto, el envío de emails de ToquePay está funcionando correctamente.</p>
 		</div>
 	`
 
 	return enviarEmail(ResendPayload{
 		From:    os.Getenv("FROM_EMAIL"),
 		To:      []string{destino},
-		Subject: "Prueba de configuración - NudgePay",
+		Subject: "Prueba de configuración - ToquePay",
 		HTML:    mensajeHTML,
 	})
 }
