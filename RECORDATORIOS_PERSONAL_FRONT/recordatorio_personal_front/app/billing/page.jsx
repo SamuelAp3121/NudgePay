@@ -20,7 +20,7 @@ const PLANS = [
     name: 'Gratuito',
     price: '$0',
     period: 'para siempre',
-    description: 'Ideal para probar NudgePay con tus primeros clientes.',
+    description: 'Ideal para probar ToquePay con tus primeros clientes.',
     features: [
       'Hasta 20 recordatorios al mes',
       'Facturas ilimitadas',

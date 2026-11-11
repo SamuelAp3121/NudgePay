@@ -231,7 +231,7 @@ export default function DashboardPage() {
     <div>
       <PageHeader
         title="Dashboard"
-        description="Gestiona tus facturas pendientes y deja que NudgePay se encargue de los recordatorios."
+        description="Gestiona tus facturas pendientes y deja que ToquePay se encargue de los recordatorios."
         actions={
           <>
             <button

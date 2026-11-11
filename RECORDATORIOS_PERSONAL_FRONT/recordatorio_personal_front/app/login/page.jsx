@@ -93,7 +93,7 @@ export default function LoginPage() {
         </div>
 
         <h2 className="text-xl font-bold tracking-tight text-slate-900">Iniciar sesión</h2>
-        <p className="mt-1.5 text-sm text-slate-500">Accede a tu panel de NudgePay.</p>
+        <p className="mt-1.5 text-sm text-slate-500">Accede a tu panel de ToquePay.</p>
 
         {error && (
           <Alert type="error" className="mt-5" onClose={() => setError('')}>

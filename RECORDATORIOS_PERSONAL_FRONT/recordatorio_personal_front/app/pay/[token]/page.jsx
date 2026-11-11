@@ -262,7 +262,7 @@ return (
 
     <p className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400">
       <IconMail className="h-3.5 w-3.5" />
-      Pago gestionado con NudgePay
+      Pago gestionado con ToquePay
     </p>
   </div>
 );

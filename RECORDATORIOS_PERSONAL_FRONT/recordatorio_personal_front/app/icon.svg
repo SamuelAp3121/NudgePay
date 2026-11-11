@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
   <rect width="32" height="32" rx="8" fill="#2547eb"/>
-  <!-- Sobre + chevron de "nudge" -->
+  <!-- Sobre + chevron de "toque" -->
   <path d="M7 11.5A2.5 2.5 0 0 1 9.5 9h13A2.5 2.5 0 0 1 25 11.5v.2l-9 5.4-9-5.4v-.2Z" fill="#fff"/>
   <path d="M7 14.4l8.4 5a1.3 1.3 0 0 0 1.2 0l8.4-5v6.1A2.5 2.5 0 0 1 22.5 23h-13A2.5 2.5 0 0 1 7 20.5v-6.1Z" fill="#bfd2ff"/>
   <path d="M19.5 6.4 23 9.9l-3.5 3.5" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>

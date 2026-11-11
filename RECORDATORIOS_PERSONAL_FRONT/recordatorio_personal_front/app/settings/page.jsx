@@ -192,7 +192,7 @@ export default function SettingsPage() {
                 <p className="text-sm text-slate-500">¿Dudas con la integración?</p>
               </div>
             </div>
-            <a href="mailto:soporte@nudgepay.app" className="btn-ghost mt-4 w-full border border-slate-200">
+            <a href="mailto:soporte@toquepay.app" className="btn-ghost mt-4 w-full border border-slate-200">
               Contactar soporte
             </a>
           </section>

@@ -287,3 +287,156 @@ export function updatePlantilla(plantillaMensaje, options = {}) {
 export function validateApiKey(key, options = {}) {
   return apiFetch('/api/v1/me', { ...options, apiKey: key });
 }
+
+/* ------------------------------------------------------------------ */
+/* Administración (solo rol = 'admin')                                 */
+/* ------------------------------------------------------------------ */
+
+/** Construye un query string omitiendo valores vacíos. */
+function qs(params = {}) {
+  const search = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value !== undefined && value !== null && value !== '') search.set(key, String(value));
+  });
+  const text = search.toString();
+  return text ? `?${text}` : '';
+}
+
+/** GET /api/v1/admin/resumen → métricas globales del negocio. */
+export function adminResumen(options = {}) {
+  return apiFetch('/api/v1/admin/resumen', options);
+}
+
+/** GET /api/v1/admin/sistema → estado de base de datos, email y pasarela. */
+export function adminSistema(options = {}) {
+  return apiFetch('/api/v1/admin/sistema', options);
+}
+
+/** GET /api/v1/admin/auditoria → acciones registradas de administradores. */
+export function adminAuditoria(params = {}, options = {}) {
+  return apiFetch(`/api/v1/admin/auditoria${qs(params)}`, options);
+}
+
+/** GET /api/v1/admin/usuarios → lista paginada con búsqueda y filtros. */
+export function adminListarUsuarios(params = {}, options = {}) {
+  return apiFetch(`/api/v1/admin/usuarios${qs(params)}`, options);
+}
+
+/** GET /api/v1/admin/usuarios/:id → ficha completa (facturas, pagos, suscripciones). */
+export function adminDetalleUsuario(id, options = {}) {
+  return apiFetch(`/api/v1/admin/usuarios/${id}`, options);
+}
+
+/** PATCH /api/v1/admin/usuarios/:id/plan → cambia el plan manualmente. */
+export function adminCambiarPlan(id, plan, dias = 30, options = {}) {
+  return apiFetch(`/api/v1/admin/usuarios/${id}/plan`, {
+    ...options,
+    method: 'PATCH',
+    body: { plan, dias },
+  });
+}
+
+/** PATCH /api/v1/admin/usuarios/:id/suspender → suspende o reactiva la cuenta. */
+export function adminSuspenderUsuario(id, suspendido, motivo = '', options = {}) {
+  return apiFetch(`/api/v1/admin/usuarios/${id}/suspender`, {
+    ...options,
+    method: 'PATCH',
+    body: { suspendido, motivo },
+  });
+}
+
+/** PATCH /api/v1/admin/usuarios/:id/rol → promueve o degrada la cuenta. */
+export function adminCambiarRol(id, rol, options = {}) {
+  return apiFetch(`/api/v1/admin/usuarios/${id}/rol`, {
+    ...options,
+    method: 'PATCH',
+    body: { rol },
+  });
+}
+
+/** POST /api/v1/admin/usuarios/:id/password → define una contraseña temporal. */
+export function adminResetPassword(id, passwordNueva, options = {}) {
+  return apiFetch(`/api/v1/admin/usuarios/${id}/password`, {
+    ...options,
+    method: 'POST',
+    body: { password_nueva: passwordNueva },
+  });
+}
+
+/** POST /api/v1/admin/usuarios/:id/cerrar-sesiones → invalida sus sesiones. */
+export function adminCerrarSesiones(id, options = {}) {
+  return apiFetch(`/api/v1/admin/usuarios/${id}/cerrar-sesiones`, { ...options, method: 'POST' });
+}
+
+/** POST /api/v1/admin/usuarios/:id/impersonar → entra como ese usuario. */
+export function adminImpersonar(id, options = {}) {
+  return apiFetch(`/api/v1/admin/usuarios/${id}/impersonar`, { ...options, method: 'POST' });
+}
+
+/** POST /api/v1/admin/salir-impersonacion → vuelve a la sesión del admin. */
+export function adminSalirImpersonacion(options = {}) {
+  return apiFetch('/api/v1/admin/salir-impersonacion', { ...options, method: 'POST' });
+}
+
+/** GET /api/v1/admin/facturas → facturas de todos los usuarios. */
+export function adminListarFacturas(params = {}, options = {}) {
+  return apiFetch(`/api/v1/admin/facturas${qs(params)}`, options);
+}
+
+/** GET /api/v1/admin/facturas/:id/cuotas → cuotas de cualquier factura. */
+export function adminCuotasFactura(id, options = {}) {
+  return apiFetch(`/api/v1/admin/facturas/${id}/cuotas`, options);
+}
+
+/** POST /api/v1/admin/facturas/:id/cuotas/:numero/pagar → concilia una cuota. */
+export function adminMarcarCuotaPagada(id, numero, payload = {}, options = {}) {
+  return apiFetch(`/api/v1/admin/facturas/${id}/cuotas/${numero}/pagar`, {
+    ...options,
+    method: 'POST',
+    body: payload,
+  });
+}
+
+/** POST /api/v1/admin/facturas/:id/cuotas/:numero/revertir → vuelve a pendiente. */
+export function adminRevertirCuota(id, numero, options = {}) {
+  return apiFetch(`/api/v1/admin/facturas/${id}/cuotas/${numero}/revertir`, {
+    ...options,
+    method: 'POST',
+  });
+}
+
+/** POST /api/v1/admin/facturas/:id/pagar → marca todas las cuotas como pagadas. */
+export function adminMarcarFacturaPagada(id, options = {}) {
+  return apiFetch(`/api/v1/admin/facturas/${id}/pagar`, { ...options, method: 'POST' });
+}
+
+/** DELETE /api/v1/admin/facturas/:id → elimina una factura de cualquier usuario. */
+export function adminEliminarFactura(id, options = {}) {
+  return apiFetch(`/api/v1/admin/facturas/${id}`, { ...options, method: 'DELETE' });
+}
+
+/** GET /api/v1/admin/pagos → pagos de pasarela de todos los usuarios. */
+export function adminListarPagos(params = {}, options = {}) {
+  return apiFetch(`/api/v1/admin/pagos${qs(params)}`, options);
+}
+
+/** GET /api/v1/admin/suscripciones → órdenes de suscripción. */
+export function adminListarSuscripciones(params = {}, options = {}) {
+  return apiFetch(`/api/v1/admin/suscripciones${qs(params)}`, options);
+}
+
+/** POST /api/v1/admin/suscripciones/:referencia/activar → concilia el pago. */
+export function adminActivarSuscripcion(referencia, options = {}) {
+  return apiFetch(`/api/v1/admin/suscripciones/${encodeURIComponent(referencia)}/activar`, {
+    ...options,
+    method: 'POST',
+  });
+}
+
+/** POST /api/v1/admin/suscripciones/:referencia/cancelar → vuelve a plan free. */
+export function adminCancelarSuscripcion(referencia, options = {}) {
+  return apiFetch(`/api/v1/admin/suscripciones/${encodeURIComponent(referencia)}/cancelar`, {
+    ...options,
+    method: 'POST',
+  });
+}

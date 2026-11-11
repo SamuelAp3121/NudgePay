@@ -2,7 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { clearApiKey, getSession, logout as logoutRequest } from './api';
+import {
+  adminSalirImpersonacion,
+  clearApiKey,
+  getSession,
+  logout as logoutRequest,
+} from './api';
 
 /**
  * Hook de sesión basado en la cookie HttpOnly del backend.
@@ -47,6 +52,50 @@ export function useSession({ redirectTo = '/login', enabled = true } = {}) {
   return { user, loading: user === undefined, error, refresh };
 }
 
+/** Indica si el usuario de la sesión tiene rol de administrador. */
+export function isAdmin(user) {
+  return String(user?.rol || '').toLowerCase() === 'admin';
+}
+
+/**
+ * Hook de sesión con información de rol.
+ * Añade `isAdmin` y `isImpersonating` (el admin está viendo la cuenta de un usuario).
+ */
+export function useSessionWithRole(options = {}) {
+  const session = useSession(options);
+  const [impersonating, setImpersonating] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    setImpersonating(window.localStorage.getItem(IMPERSONATION_KEY) === '1');
+  }, [session.user]);
+
+  return {
+    ...session,
+    isAdmin: isAdmin(session.user),
+    isImpersonating: impersonating,
+  };
+}
+
+/** Clave de localStorage que marca una impersonación activa. */
+export const IMPERSONATION_KEY = 'toquepay_impersonating';
+
+/** Marca el inicio de una impersonación (el admin entra como un usuario). */
+export function markImpersonation() {
+  if (typeof window !== 'undefined') window.localStorage.setItem(IMPERSONATION_KEY, '1');
+}
+
+/** Sale de la impersonación y restaura la sesión del administrador. */
+export async function exitImpersonation(router) {
+  try {
+    await adminSalirImpersonacion();
+  } finally {
+    if (typeof window !== 'undefined') window.localStorage.removeItem(IMPERSONATION_KEY);
+  }
+  if (router) router.replace('/admin/usuarios');
+  else if (typeof window !== 'undefined') window.location.assign('/admin/usuarios');
+}
+
 /** Cierra la sesión en el backend, limpia restos locales y va a /login. */
 export async function signOut(router) {
   try {
@@ -55,6 +104,7 @@ export async function signOut(router) {
     // Si el backend no responde, igualmente limpiamos el cliente.
   }
   clearApiKey();
+  if (typeof window !== 'undefined') window.localStorage.removeItem(IMPERSONATION_KEY);
   if (router) router.replace('/login');
   else if (typeof window !== 'undefined') window.location.assign('/login');
 }

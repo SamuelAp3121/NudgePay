@@ -11,6 +11,7 @@ import {
   IconMail,
   IconMenu,
   IconSettings,
+  IconShield,
 } from './icons';
 import { signOut, useSession } from '@/lib/auth';
 
@@ -20,10 +21,15 @@ const NAV_ITEMS = [
   { href: '/billing', label: 'Facturación', description: 'Plan y suscripción', Icon: IconBilling },
 ];
 
-function NavLinks({ pathname, onNavigate }) {
+// Solo visible para cuentas con rol = 'admin'.
+const ADMIN_NAV_ITEMS = [
+  { href: '/admin', label: 'Administración', description: 'Soporte y control global', Icon: IconShield },
+];
+
+function NavLinks({ pathname, onNavigate, items = NAV_ITEMS }) {
   return (
     <nav className="flex flex-col gap-1">
-      {NAV_ITEMS.map(({ href, label, description, Icon }) => {
+      {items.map(({ href, label, description, Icon }) => {
         const active = pathname === href || pathname.startsWith(`${href}/`);
         return (
           <Link
@@ -64,7 +70,7 @@ function Brand() {
         <IconMail className="h-5 w-5" />
       </span>
       <span className="leading-tight">
-        <span className="block text-sm font-bold tracking-tight text-slate-900">NudgePay</span>
+        <span className="block text-sm font-bold tracking-tight text-slate-900">ToquePay</span>
         <span className="block text-[11px] font-medium uppercase tracking-wider text-slate-400">
           Cobros sin fricción
         </span>
@@ -78,6 +84,7 @@ export default function Sidebar() {
   const router = useRouter();
   const [mobileOpen, setMobileOpen] = useState(false);
   const { user } = useSession({ redirectTo: null });
+  const admin = String(user?.rol || '').toLowerCase() === 'admin';
 
   // Las pantallas de acceso se muestran a pantalla completa, sin navegación.
   const isAuthRoute =
@@ -129,6 +136,14 @@ export default function Sidebar() {
             Menú
           </p>
           <NavLinks pathname={pathname} />
+          {admin && (
+            <div className="mt-4">
+              <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                Soporte
+              </p>
+              <NavLinks pathname={pathname} items={ADMIN_NAV_ITEMS} />
+            </div>
+          )}
         </div>
         <div className="space-y-3">
           <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
@@ -136,7 +151,8 @@ export default function Sidebar() {
               {user?.email || 'Sesión activa'}
             </p>
             <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              Plan {user?.plan === 'pro' ? 'Pro' : 'Gratuito'} · sesión segura por cookie
+              {admin ? 'Administrador' : `Plan ${user?.plan === 'pro' ? 'Pro' : 'Gratuito'}`} · sesión
+              segura por cookie
             </p>
           </div>
           <button
@@ -172,6 +188,18 @@ export default function Sidebar() {
             </div>
             <div className="mt-8 flex-1">
               <NavLinks pathname={pathname} onNavigate={() => setMobileOpen(false)} />
+              {admin && (
+                <div className="mt-4">
+                  <p className="mb-2 px-3 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                    Soporte
+                  </p>
+                  <NavLinks
+                    pathname={pathname}
+                    items={ADMIN_NAV_ITEMS}
+                    onNavigate={() => setMobileOpen(false)}
+                  />
+                </div>
+              )}
             </div>
             <button
               type="button"
