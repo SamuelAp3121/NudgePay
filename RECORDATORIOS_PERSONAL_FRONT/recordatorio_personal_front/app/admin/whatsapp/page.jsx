@@ -105,6 +105,16 @@ export default function AdminWhatsAppPage() {
         </Alert>
       )}
 
+      {resumen?.migracion_pendiente && (
+        <Alert type="warning" title="Migración pendiente" className="mb-5">
+          La base de datos aún no tiene las columnas del módulo de WhatsApp. Aplica
+          <code className="mx-1 rounded bg-white px-1.5 py-0.5 font-mono text-xs">
+            migrations/001_whatsapp.sql
+          </code>
+          para activarlo.
+        </Alert>
+      )}
+
       {error && (
         <Alert type="error" title="Error al cargar WhatsApp" className="mb-5" onClose={() => setError('')}>
           <p>{error}</p>
@@ -158,8 +168,8 @@ export default function AdminWhatsAppPage() {
               <span className="font-medium text-slate-700">Estado</span>
               <span
                 className={`badge ${resumen?.configurado
-                    ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
-                    : 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200'
+                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
+                  : 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200'
                   }`}
               >
                 {resumen?.configurado ? 'Operativo' : 'Sin configurar'}
@@ -291,8 +301,8 @@ export default function AdminWhatsAppPage() {
                       <td className="px-4 py-3">
                         <span
                           className={`badge ${envio.estado === 'enviado'
-                              ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
-                              : 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200'
+                            ? 'bg-emerald-50 text-emerald-700 ring-1 ring-inset ring-emerald-200'
+                            : 'bg-rose-50 text-rose-700 ring-1 ring-inset ring-rose-200'
                             }`}
                         >
                           {envio.estado === 'enviado' ? 'Enviado' : 'Fallido'}

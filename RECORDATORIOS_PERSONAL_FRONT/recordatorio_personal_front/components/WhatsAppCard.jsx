@@ -128,6 +128,13 @@ export default function WhatsAppCard() {
             </p>
           )}
 
+          {config?.migracion_pendiente && (
+            <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              El módulo de WhatsApp aún no está activo en este servidor porque falta aplicar
+              la migración de base de datos. Contacta con soporte.
+            </p>
+          )}
+
           <div>
             <label htmlFor="wa-telefono" className="label">
               Tu número de WhatsApp

@@ -6,7 +6,30 @@
  * El header `X-API-Key` se mantiene solo para integraciones/scripts.
  */
 
-export const API_URL = (process.env.NEXT_PUBLIC_API_URL || 'https://nudgepay-dz49.onrender.com').replace(/\/+$/, '');
+/**
+ * URL del backend. Se incrusta en el bundle al construir (`NEXT_PUBLIC_*`), así que
+ * debe estar definida ANTES del build (p. ej. en Render → Environment).
+ */
+const API_URL_CONFIGURADA = String(process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
+
+export const API_URL = API_URL_CONFIGURADA || 'http://localhost:8080';
+
+/** Indica si la URL del backend se configuró al construir la aplicación. */
+export const API_URL_CONFIGURADA_OK = API_URL_CONFIGURADA !== '';
+
+/** Mensaje de error honesto: distingue un backend mal configurado de uno caído. */
+function mensajeConexion() {
+  if (!API_URL_CONFIGURADA_OK) {
+    return (
+      'El panel no tiene configurada la URL del backend (NEXT_PUBLIC_API_URL). ' +
+      'Define esa variable en el entorno de despliegue y vuelve a construir la aplicación.'
+    );
+  }
+  return (
+    `No se pudo conectar con el backend en ${API_URL_CONFIGURADA}. ` +
+    'Comprueba que el servicio esté desplegado y que CORS_ORIGINS incluya el dominio del panel.'
+  );
+}
 
 // Claves antiguas de API Key en localStorage (se limpian al iniciar sesión).
 export const API_KEY_STORAGE_KEY = 'invoice_reminder_api_key';
@@ -71,10 +94,7 @@ export async function apiFetch(path, { method = 'GET', body, apiKey, signal } = 
     });
   } catch (error) {
     if (error.name === 'AbortError') throw error;
-    throw new ApiError(
-      `No se pudo conectar con el servidor (${API_URL}). Verifica que el backend esté en ejecución.`,
-      0
-    );
+    throw new ApiError(mensajeConexion(), 0);
   }
 
   if (response.status === 204) return null;
