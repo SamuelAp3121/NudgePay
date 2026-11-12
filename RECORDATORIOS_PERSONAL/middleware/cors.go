@@ -13,7 +13,7 @@ import (
 func CORS() fiber.Handler {
 	allowed := os.Getenv("CORS_ORIGINS")
 	if allowed == "" {
-		allowed = "http://localhost:3000,http://127.0.0.1:3000,https://toquepay.vercel.app/"
+		allowed = "https://toquepay.vercel.app"
 	}
 
 	origins := map[string]bool{}
