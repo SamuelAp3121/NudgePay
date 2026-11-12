@@ -7,26 +7,29 @@
  */
 
 /**
- * URL del backend. Se incrusta en el bundle al construir (`NEXT_PUBLIC_*`), así que
- * debe estar definida ANTES del build (p. ej. en Render → Environment).
+ * URL del backend en producción.
+ *
+ * Se deja fija para que el despliegue no dependa de variables de entorno.
+ * `NEXT_PUBLIC_API_URL` solo se usa en desarrollo local (cuando apunta a
+ * localhost/127.0.0.1); en producción se ignora, porque en Vercel quedó
+ * configurada con un valor antiguo que no se puede cambiar.
  */
+export const BACKEND_URL = 'https://nudgepay-dz49.onrender.com';
+
 const API_URL_CONFIGURADA = String(process.env.NEXT_PUBLIC_API_URL || '').trim().replace(/\/+$/, '');
 
-export const API_URL = API_URL_CONFIGURADA || 'http://localhost:8080';
+/** Solo se respeta la variable si apunta a un backend local. */
+const ES_LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(API_URL_CONFIGURADA);
 
-/** Indica si la URL del backend se configuró al construir la aplicación. */
-export const API_URL_CONFIGURADA_OK = API_URL_CONFIGURADA !== '';
+export const API_URL = (ES_LOCAL ? API_URL_CONFIGURADA : BACKEND_URL).replace(/\/+$/, '');
+
+/** Indica si se está usando un backend local configurado por variable. */
+export const API_URL_CONFIGURADA_OK = ES_LOCAL;
 
 /** Mensaje de error honesto: distingue un backend mal configurado de uno caído. */
 function mensajeConexion() {
-  if (!API_URL_CONFIGURADA_OK) {
-    return (
-      'El panel no tiene configurada la URL del backend (NEXT_PUBLIC_API_URL). ' +
-      'Define esa variable en el entorno de despliegue y vuelve a construir la aplicación.'
-    );
-  }
   return (
-    `No se pudo conectar con el backend en ${API_URL_CONFIGURADA}. ` +
+    `No se pudo conectar con el backend en ${API_URL}. ` +
     'Comprueba que el servicio esté desplegado y que CORS_ORIGINS incluya el dominio del panel.'
   );
 }
