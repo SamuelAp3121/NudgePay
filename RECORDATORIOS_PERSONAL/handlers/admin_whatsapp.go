@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"database/sql"
 	"invoice-reminder/config"
 	"invoice-reminder/services"
 	"net/http"
@@ -23,12 +22,27 @@ import (
 func AdminWhatsAppResumen(c *fiber.Ctx) error {
 	global := services.WhatsAppConfigDesdeEntorno()
 
+	migracion := config.MigracionWhatsAppAplicada()
+
 	resumen := fiber.Map{
-		"configurado":   global.Configurado(),
-		"phone_number_id": global.PhoneNumberID,
-		"api_version":   global.APIVersion,
-		"template_name": global.TemplateName,
-		"template_lang": global.TemplateLang,
+		"configurado":         global.Configurado(),
+		"phone_number_id":     global.PhoneNumberID,
+		"api_version":         global.APIVersion,
+		"template_name":       global.TemplateName,
+		"template_lang":       global.TemplateLang,
+		"migracion_pendiente": !migracion,
+	}
+
+	// Sin la migración aplicada no existen las columnas del canal: se devuelve
+	// el panel vacío en vez de fallar.
+	if !migracion {
+		resumen["envios"] = fiber.Map{
+			"mes_enviados": 0, "mes_fallidos": 0, "total_enviados": 0, "total_fallidos": 0,
+		}
+		resumen["usuarios_activos"] = 0
+		resumen["facturas_whatsapp"] = 0
+		resumen["ultimos_envios"] = []fiber.Map{}
+		return c.JSON(resumen)
 	}
 
 	var enviadosMes, fallidosMes, totalEnviados, totalFallidos int
@@ -50,16 +64,18 @@ func AdminWhatsAppResumen(c *fiber.Ctx) error {
 	).Scan(&totalFallidos)
 
 	var usuariosConWhatsApp, facturasConWhatsApp int
-	_ = config.DB.QueryRow(
-		`SELECT COUNT(*) FROM usuarios WHERE COALESCE(whatsapp_activo, FALSE) = TRUE`,
-	).Scan(&usuariosConWhatsApp)
-	_ = config.DB.QueryRow(
-		`SELECT COUNT(*) FROM facturas WHERE canal_recordatorio IN ('whatsapp', 'ambos')`,
-	).Scan(&facturasConWhatsApp)
+	if migracion {
+		_ = config.DB.QueryRow(
+			`SELECT COUNT(*) FROM usuarios WHERE COALESCE(whatsapp_activo, FALSE) = TRUE`,
+		).Scan(&usuariosConWhatsApp)
+		_ = config.DB.QueryRow(
+			`SELECT COUNT(*) FROM facturas WHERE canal_recordatorio IN ('whatsapp', 'ambos')`,
+		).Scan(&facturasConWhatsApp)
+	}
 
 	resumen["envios"] = fiber.Map{
-		"mes_enviados": enviadosMes,
-		"mes_fallidos": fallidosMes,
+		"mes_enviados":   enviadosMes,
+		"mes_fallidos":   fallidosMes,
 		"total_enviados": totalEnviados,
 		"total_fallidos": totalFallidos,
 	}
@@ -103,6 +119,13 @@ func AdminListarEnviosWhatsApp(c *fiber.Ctx) error {
 	page, limit, offset := parsePaginacion(c)
 	q := strings.TrimSpace(c.Query("q"))
 	estado := strings.TrimSpace(c.Query("estado"))
+
+	if !config.MigracionWhatsAppAplicada() {
+		return c.JSON(fiber.Map{
+			"envios": []fiber.Map{}, "total": 0, "page": page, "limit": limit, "paginas": 1,
+			"migracion_pendiente": true,
+		})
+	}
 
 	where := []string{"r.canal = 'whatsapp'"}
 	args := []any{}
@@ -192,6 +215,12 @@ func AdminEnviarWhatsAppPrueba(c *fiber.Ctx) error {
 func AdminActualizarWhatsAppUsuario(c *fiber.Ctx) error {
 	id := c.Params("id")
 
+	if !config.MigracionWhatsAppAplicada() {
+		return c.Status(http.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "Falta aplicar la migración de base de datos para usar WhatsApp.",
+		})
+	}
+
 	var body struct {
 		Activo   *bool  `json:"activo"`
 		Telefono string `json:"telefono"`
@@ -226,14 +255,4 @@ func AdminActualizarWhatsAppUsuario(c *fiber.Ctx) error {
 		"email": email, "activo": activo, "telefono": telefono,
 	})
 	return c.JSON(fiber.Map{"mensaje": "WhatsApp actualizado", "id": id, "activo": activo})
-}
-
-// whatsappDelUsuario devuelve el estado de WhatsApp de una cuenta (uso interno).
-func whatsappDelUsuario(usuarioID string) (activo bool, telefono string) {
-	var tel sql.NullString
-	_ = config.DB.QueryRow(
-		`SELECT COALESCE(whatsapp_activo, FALSE), COALESCE(whatsapp_telefono, '') FROM usuarios WHERE id = $1`,
-		usuarioID,
-	).Scan(&activo, &tel)
-	return activo, tel.String
 }

@@ -20,13 +20,20 @@ const MaxCuotas = 60
 func ListarFacturas(c *fiber.Ctx) error {
 	usuarioID, _ := c.Locals("usuario_id").(string)
 
+	// Las columnas de WhatsApp solo se seleccionan si la migración se aplicó.
+	colTelefono, colCanal := "''", "'email'"
+	siWhatsApp := config.MigracionWhatsAppAplicada()
+	if siWhatsApp {
+		colTelefono, colCanal = "COALESCE(f.cliente_telefono, '')", "COALESCE(f.canal_recordatorio, 'email')"
+	}
+
 	query := `SELECT f.id, f.usuario_id, f.cliente_nombre, f.cliente_email, COALESCE(f.concepto, ''),
 	                 f.monto, COALESCE(f.moneda, 'COP'), COALESCE(f.cuotas, 1),
 	                 f.fecha_vencimiento, f.estado, f.notificado, f.creado_en,
 	                 f.pago_link, f.pago_qr, f.pago_transfer,
 	                 COALESCE(f.banco_nombre, ''), COALESCE(f.banco_cuenta, ''), COALESCE(f.banco_titular, ''),
 	                 COALESCE(f.qr_payload, ''), COALESCE(f.token_publico, ''),
-	                 COALESCE(f.cliente_telefono, ''), COALESCE(f.canal_recordatorio, 'email'),
+	                 ` + colTelefono + `, ` + colCanal + `,
 	                 COALESCE(c.pagadas, 0), COALESCE(c.pagado, 0)
 	          FROM facturas f
 	          LEFT JOIN (
@@ -154,16 +161,35 @@ func CrearFactura(c *fiber.Ctx) error {
 	}
 	defer tx.Rollback()
 
-	query := `INSERT INTO facturas (usuario_id, cliente_nombre, cliente_email, cliente_telefono, concepto, monto, moneda, cuotas,
+	// La inserción incluye las columnas de WhatsApp solo si la migración existe.
+	siWhatsApp := config.MigracionWhatsAppAplicada()
+
+	var query string
+	var args []any
+
+	if siWhatsApp {
+		query = `INSERT INTO facturas (usuario_id, cliente_nombre, cliente_email, cliente_telefono, concepto, monto, moneda, cuotas,
 	                               fecha_vencimiento, pago_link, pago_qr, pago_transfer,
 	                               banco_nombre, banco_cuenta, banco_titular, qr_payload, token_publico, canal_recordatorio)
 	          VALUES ($1, $2, $3, NULLIF($4, ''), NULLIF($5, ''), $6, $7, $8, $9, $10, $11, $12, NULLIF($13, ''), NULLIF($14, ''), NULLIF($15, ''), NULLIF($16, ''), $17, $18)
 	          RETURNING id, estado, notificado, creado_en`
+		args = []any{usuarioID, f.ClienteNombre, f.ClienteEmail, f.ClienteTelefono, f.Concepto, f.Monto, f.Moneda, f.Cuotas,
+			f.FechaVencimiento, f.PagoLink, f.PagoQR, f.PagoTransfer,
+			strings.TrimSpace(f.BancoNombre), strings.TrimSpace(f.BancoCuenta), strings.TrimSpace(f.BancoTitular),
+			strings.TrimSpace(f.QRPayload), f.TokenPublico, f.CanalRecordatorio}
+	} else {
+		query = `INSERT INTO facturas (usuario_id, cliente_nombre, cliente_email, concepto, monto, moneda, cuotas,
+	                               fecha_vencimiento, pago_link, pago_qr, pago_transfer,
+	                               banco_nombre, banco_cuenta, banco_titular, qr_payload, token_publico)
+	          VALUES ($1, $2, $3, NULLIF($4, ''), $5, $6, $7, $8, $9, $10, $11, NULLIF($12, ''), NULLIF($13, ''), NULLIF($14, ''), NULLIF($15, ''), $16)
+	          RETURNING id, estado, notificado, creado_en`
+		args = []any{usuarioID, f.ClienteNombre, f.ClienteEmail, f.Concepto, f.Monto, f.Moneda, f.Cuotas,
+			f.FechaVencimiento, f.PagoLink, f.PagoQR, f.PagoTransfer,
+			strings.TrimSpace(f.BancoNombre), strings.TrimSpace(f.BancoCuenta), strings.TrimSpace(f.BancoTitular),
+			strings.TrimSpace(f.QRPayload), f.TokenPublico}
+	}
 
-	err = tx.QueryRow(query, usuarioID, f.ClienteNombre, f.ClienteEmail, f.ClienteTelefono, f.Concepto, f.Monto, f.Moneda, f.Cuotas,
-		f.FechaVencimiento, f.PagoLink, f.PagoQR, f.PagoTransfer,
-		strings.TrimSpace(f.BancoNombre), strings.TrimSpace(f.BancoCuenta), strings.TrimSpace(f.BancoTitular),
-		strings.TrimSpace(f.QRPayload), f.TokenPublico, f.CanalRecordatorio).
+	err = tx.QueryRow(query, args...).
 		Scan(&f.ID, &f.Estado, &f.Notificado, &f.CreadoEn)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo registrar la factura", "detalle": err.Error()})

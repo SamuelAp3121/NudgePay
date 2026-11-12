@@ -44,6 +44,11 @@ func normalizarCanal(canal string) (string, bool) {
 func configWhatsAppDelUsuario(usuarioID string) services.WhatsAppConfig {
 	global := services.WhatsAppConfigDesdeEntorno()
 
+	// Sin la migración aplicada no existen las columnas del usuario.
+	if !config.MigracionWhatsAppAplicada() {
+		return global
+	}
+
 	var token, phoneID, plantilla, idioma sql.NullString
 	var activo bool
 	err := config.DB.QueryRow(
@@ -78,6 +83,26 @@ func configWhatsAppDelUsuario(usuarioID string) services.WhatsAppConfig {
 func ObtenerConfigWhatsApp(c *fiber.Ctx) error {
 	usuarioID, _ := c.Locals("usuario_id").(string)
 
+	global := services.WhatsAppConfigDesdeEntorno()
+
+	// Si la migración no está aplicada se responde con el estado global y un
+	// aviso, en lugar de fallar con un error de SQL.
+	if !config.MigracionWhatsAppAplicada() {
+		return c.JSON(fiber.Map{
+			"telefono":           "",
+			"phone_number_id":    "",
+			"template_name":      "",
+			"template_lang":      "",
+			"activo":             false,
+			"token_configurado":  false,
+			"usando_global":      true,
+			"global_configurado": global.Configurado(),
+			"global_template":    global.TemplateName,
+			"global_lang":        global.TemplateLang,
+			"migracion_pendiente": true,
+		})
+	}
+
 	var telefono, token, phoneID, plantilla, idioma sql.NullString
 	var activo bool
 	err := config.DB.QueryRow(
@@ -91,8 +116,6 @@ func ObtenerConfigWhatsApp(c *fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo cargar la configuración", "detalle": err.Error()})
 	}
 
-	global := services.WhatsAppConfigDesdeEntorno()
-
 	return c.JSON(fiber.Map{
 		"telefono":        telefono.String,
 		"phone_number_id": phoneID.String,
@@ -105,6 +128,7 @@ func ObtenerConfigWhatsApp(c *fiber.Ctx) error {
 		"global_configurado": global.Configurado(),
 		"global_template":    global.TemplateName,
 		"global_lang":        global.TemplateLang,
+		"migracion_pendiente": false,
 	})
 }
 
@@ -112,6 +136,12 @@ func ObtenerConfigWhatsApp(c *fiber.Ctx) error {
 // PUT /api/v1/whatsapp/config
 func ActualizarConfigWhatsApp(c *fiber.Ctx) error {
 	usuarioID, _ := c.Locals("usuario_id").(string)
+
+	if !config.MigracionWhatsAppAplicada() {
+		return c.Status(http.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "El módulo de WhatsApp aún no está disponible: falta aplicar la migración de base de datos.",
+		})
+	}
 
 	var body struct {
 		Telefono      string `json:"telefono"`
@@ -190,10 +220,6 @@ func EnviarWhatsAppPrueba(c *fiber.Ctx) error {
 
 	telefono := strings.TrimSpace(body.Telefono)
 	if telefono == "" {
-		// Si no se indica, se usa el teléfono guardado en la cuenta.
-		_ = config.DB.QueryRow(`SELECT COALESCE(whatsapp_telefono, '') FROM usuarios WHERE id = $1`, usuarioID).Scan(&telefono)
-	}
-	if telefono == "" {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Indica un número de WhatsApp para la prueba"})
 	}
 
@@ -216,11 +242,23 @@ func EnviarRecordatorioWhatsAppFactura(c *fiber.Ctx) error {
 	usuarioID, _ := c.Locals("usuario_id").(string)
 	plan, _ := c.Locals("plan").(string)
 
+	if !config.MigracionWhatsAppAplicada() {
+		return c.Status(http.StatusServiceUnavailable).JSON(fiber.Map{
+			"error": "El canal WhatsApp no está disponible: falta aplicar la migración de base de datos.",
+		})
+	}
+
 	var nombre, email, telefono, concepto, estado, moneda, tokenPublico string
 	var montoTotal float64
 	var cuotas int
+
+	colTelefono := "''"
+	if config.MigracionWhatsAppAplicada() {
+		colTelefono = "COALESCE(cliente_telefono, '')"
+	}
+
 	err := config.DB.QueryRow(
-		`SELECT cliente_nombre, cliente_email, COALESCE(cliente_telefono, ''), COALESCE(concepto, ''),
+		`SELECT cliente_nombre, cliente_email, `+colTelefono+`, COALESCE(concepto, ''),
 		        estado, monto, COALESCE(moneda, 'COP'), COALESCE(cuotas, 1), COALESCE(token_publico, '')
 		   FROM facturas WHERE id = $1 AND usuario_id = $2`,
 		id, usuarioID,

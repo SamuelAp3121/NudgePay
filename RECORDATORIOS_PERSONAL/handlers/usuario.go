@@ -35,6 +35,9 @@ func RegistrarRecordatorioEnviado(usuarioID, facturaID, cuotaID, email string) e
 
 // RegistrarRecordatorioCanal guarda un recordatorio indicando canal, estado y error.
 // canal: email | whatsapp. estado: enviado | fallido.
+//
+// Si la migración de WhatsApp no está aplicada, se guarda solo lo esencial para
+// que el registro histórico nunca dependa de columnas nuevas.
 func RegistrarRecordatorioCanal(usuarioID, facturaID, cuotaID, destino, canal, estado, mensajeError string) error {
 	if canal == "" {
 		canal = "email"
@@ -42,6 +45,16 @@ func RegistrarRecordatorioCanal(usuarioID, facturaID, cuotaID, destino, canal, e
 	if estado == "" {
 		estado = "enviado"
 	}
+
+	if !config.MigracionWhatsAppAplicada() {
+		_, err := config.DB.Exec(
+			`INSERT INTO recordatorios_enviados (usuario_id, factura_id, cuota_id, email_destino)
+			 VALUES ($1, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, $4)`,
+			usuarioID, facturaID, cuotaID, destino,
+		)
+		return err
+	}
+
 	_, err := config.DB.Exec(
 		`INSERT INTO recordatorios_enviados (usuario_id, factura_id, cuota_id, email_destino, canal, estado, error)
 		 VALUES ($1, NULLIF($2, '')::uuid, NULLIF($3, '')::uuid, $4, $5, $6, NULLIF($7, ''))`,

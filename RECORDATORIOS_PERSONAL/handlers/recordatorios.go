@@ -22,8 +22,14 @@ func EnviarRecordatorio(c *fiber.Ctx) error {
 	var nombre, email, telefono, concepto, estado, moneda, tokenPublico string
 	var montoTotal float64
 	var cuotas int
+
+	colTelefono := "''"
+	if config.MigracionWhatsAppAplicada() {
+		colTelefono = "COALESCE(cliente_telefono, '')"
+	}
+
 	err := config.DB.QueryRow(
-		`SELECT cliente_nombre, cliente_email, COALESCE(cliente_telefono, ''), COALESCE(concepto, ''),
+		`SELECT cliente_nombre, cliente_email, `+colTelefono+`, COALESCE(concepto, ''),
 		        estado, monto, COALESCE(moneda, 'COP'), COALESCE(cuotas, 1), COALESCE(token_publico, '')
 		   FROM facturas WHERE id = $1 AND usuario_id = $2`,
 		id, usuarioID,

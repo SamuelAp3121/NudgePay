@@ -134,26 +134,31 @@ func AdminResumen(c *fiber.Ctx) error {
 	}
 
 	// Recordatorios por canal (email vs WhatsApp) del mes en curso.
+	// Sin la migración aplicada no existe el canal: todo cuenta como email.
 	var recordatoriosEmail, recordatoriosWhatsApp, whatsappFallidos int
-	_ = config.DB.QueryRow(
-		`SELECT COUNT(*) FROM recordatorios_enviados
-		  WHERE COALESCE(canal, 'email') = 'email'
-		    AND date_trunc('month', enviado_en) = date_trunc('month', CURRENT_TIMESTAMP)`,
-	).Scan(&recordatoriosEmail)
-	_ = config.DB.QueryRow(
-		`SELECT COUNT(*) FROM recordatorios_enviados
-		  WHERE canal = 'whatsapp' AND COALESCE(estado, 'enviado') = 'enviado'
-		    AND date_trunc('month', enviado_en) = date_trunc('month', CURRENT_TIMESTAMP)`,
-	).Scan(&recordatoriosWhatsApp)
-	_ = config.DB.QueryRow(
-		`SELECT COUNT(*) FROM recordatorios_enviados
-		  WHERE canal = 'whatsapp' AND estado = 'fallido'
-		    AND date_trunc('month', enviado_en) = date_trunc('month', CURRENT_TIMESTAMP)`,
-	).Scan(&whatsappFallidos)
+	if config.MigracionWhatsAppAplicada() {
+		_ = config.DB.QueryRow(
+			`SELECT COUNT(*) FROM recordatorios_enviados
+			  WHERE COALESCE(canal, 'email') = 'email'
+			    AND date_trunc('month', enviado_en) = date_trunc('month', CURRENT_TIMESTAMP)`,
+		).Scan(&recordatoriosEmail)
+		_ = config.DB.QueryRow(
+			`SELECT COUNT(*) FROM recordatorios_enviados
+			  WHERE canal = 'whatsapp' AND COALESCE(estado, 'enviado') = 'enviado'
+			    AND date_trunc('month', enviado_en) = date_trunc('month', CURRENT_TIMESTAMP)`,
+		).Scan(&recordatoriosWhatsApp)
+		_ = config.DB.QueryRow(
+			`SELECT COUNT(*) FROM recordatorios_enviados
+			  WHERE canal = 'whatsapp' AND estado = 'fallido'
+			    AND date_trunc('month', enviado_en) = date_trunc('month', CURRENT_TIMESTAMP)`,
+		).Scan(&whatsappFallidos)
+	} else {
+		recordatoriosEmail = recordatoriosMes
+	}
 
 	resumen["canales"] = fiber.Map{
-		"email_mes":    recordatoriosEmail,
-		"whatsapp_mes": recordatoriosWhatsApp,
+		"email_mes":             recordatoriosEmail,
+		"whatsapp_mes":          recordatoriosWhatsApp,
 		"whatsapp_fallidos_mes": whatsappFallidos,
 		"whatsapp_configurado":  services.WhatsAppConfigurado(),
 	}
@@ -289,15 +294,22 @@ func AdminDetalleUsuario(c *fiber.Ctx) error {
 	var suspendido, waActivo bool
 	var creado string
 	var expira, ultimoAcceso sql.NullString
+
+	// Columnas de WhatsApp: solo si la migración está aplicada.
+	waCols := `'' , '' , '' , '' , FALSE`
+	if config.MigracionWhatsAppAplicada() {
+		waCols = `COALESCE(whatsapp_telefono, ''), COALESCE(whatsapp_phone_number_id, ''),
+		          COALESCE(whatsapp_template_name, ''), COALESCE(whatsapp_template_lang, ''),
+		          COALESCE(whatsapp_activo, FALSE)`
+	}
+
 	err := config.DB.QueryRow(
 		`SELECT email, COALESCE(plan, 'free'), COALESCE(rol, 'usuario'), suspendido,
 		        COALESCE(suspendido_motivo, ''), COALESCE(plantilla_mensaje, ''),
 		        to_char(creado_en, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
 		        to_char(plan_expira_en, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
 		        to_char(ultimo_acceso, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
-		        COALESCE(whatsapp_telefono, ''), COALESCE(whatsapp_phone_number_id, ''),
-		        COALESCE(whatsapp_template_name, ''), COALESCE(whatsapp_template_lang, ''),
-		        COALESCE(whatsapp_activo, FALSE)
+		        `+waCols+`
 		   FROM usuarios WHERE id = $1`,
 		id,
 	).Scan(&email, &planActual, &rolActual, &suspendido, &motivo, &plantilla, &creado, &expira, &ultimoAcceso,
@@ -740,7 +752,7 @@ func AdminListarFacturas(c *fiber.Ctx) error {
 	                 COALESCE(f.concepto, ''), f.monto, COALESCE(f.moneda, 'COP'),
 	                 COALESCE(f.cuotas, 1), f.fecha_vencimiento, f.estado, f.notificado,
 	                 to_char(f.creado_en, 'YYYY-MM-DD"T"HH24:MI:SSOF'),
-	                 COALESCE(f.cliente_telefono, ''), COALESCE(f.canal_recordatorio, 'email'),
+	                 ` + SQLTelefonoFactura() + `, ` + SQLCanalFactura() + `,
 	                 COALESCE(c.pagadas, 0), COALESCE(c.pagado, 0)
 	            FROM facturas f
 	            JOIN usuarios u ON u.id = f.usuario_id

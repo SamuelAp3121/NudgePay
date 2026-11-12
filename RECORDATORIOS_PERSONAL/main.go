@@ -137,10 +137,17 @@ func main() {
 func procesarRecordatoriosDiarios() {
 	log.Println("[CRON] Buscando cuotas pendientes por notificar...")
 
+	// Las columnas de WhatsApp solo existen si se aplicó la migración.
+	colTelefono, colCanal := "''", "'email'"
+	if config.MigracionWhatsAppAplicada() {
+		colTelefono = "COALESCE(f.cliente_telefono, '')"
+		colCanal = "COALESCE(f.canal_recordatorio, 'email')"
+	}
+
 	query := `SELECT cu.id, cu.numero, cu.monto, cu.fecha_vencimiento,
 	                 f.id, f.cliente_nombre, f.cliente_email, f.monto, COALESCE(f.moneda, 'COP'),
 	                 COALESCE(f.cuotas, 1), COALESCE(f.usuario_id::text, ''), COALESCE(u.plan, 'free'),
-	                 COALESCE(f.cliente_telefono, ''), COALESCE(f.canal_recordatorio, 'email'),
+	                 ` + colTelefono + `, ` + colCanal + `,
 	                 COALESCE(f.concepto, ''), COALESCE(f.token_publico, '')
 	          FROM cuotas cu
 	          JOIN facturas f ON f.id = cu.factura_id
