@@ -7,12 +7,14 @@
  */
 
 /**
- * URL del backend en producción.
+ * URL base de la API.
  *
- * Se deja fija para que el despliegue no dependa de variables de entorno.
- * `NEXT_PUBLIC_API_URL` solo se usa en desarrollo local (cuando apunta a
- * localhost/127.0.0.1); en producción se ignora, porque en Vercel quedó
- * configurada con un valor antiguo que no se puede cambiar.
+ * En producción se usa la MISMA origen: Next.js hace proxy de `/api/*` al
+ * backend en Render (ver `next.config.mjs`). Así la cookie de sesión
+ * `ir_session` es de primera parte (same-site) y ningún navegador la bloquea
+ * como cookie de terceros, que era lo que impedía iniciar sesión.
+ * `NEXT_PUBLIC_API_URL` solo se respeta si apunta a un backend local
+ * (desarrollo con el servidor Go corriendo en tu máquina).
  */
 export const BACKEND_URL = 'https://nudgepay-dz49.onrender.com';
 
@@ -21,7 +23,7 @@ const API_URL_CONFIGURADA = String(process.env.NEXT_PUBLIC_API_URL || '').trim()
 /** Solo se respeta la variable si apunta a un backend local. */
 const ES_LOCAL = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(API_URL_CONFIGURADA);
 
-export const API_URL = (ES_LOCAL ? API_URL_CONFIGURADA : BACKEND_URL).replace(/\/+$/, '');
+export const API_URL = ES_LOCAL ? API_URL_CONFIGURADA : '';
 
 /** Indica si se está usando un backend local configurado por variable. */
 export const API_URL_CONFIGURADA_OK = ES_LOCAL;
@@ -29,8 +31,8 @@ export const API_URL_CONFIGURADA_OK = ES_LOCAL;
 /** Mensaje de error honesto: distingue un backend mal configurado de uno caído. */
 function mensajeConexion() {
   return (
-    `No se pudo conectar con el backend en ${API_URL}. ` +
-    'Comprueba que el servicio esté desplegado y que CORS_ORIGINS incluya el dominio del panel.'
+    `No se pudo conectar con el backend (${BACKEND_URL || 'misma origen /api'}). ` +
+    'Comprueba que el servicio esté desplegado.'
   );
 }
 
