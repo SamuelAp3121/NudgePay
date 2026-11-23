@@ -90,7 +90,10 @@ export default function WhatsAppCard() {
       await sendWhatsAppTest(form.telefono.trim());
       setNotice({ type: 'success', message: 'Mensaje de prueba enviado por WhatsApp.' });
     } catch (err) {
-      setNotice({ type: 'error', message: err?.message || 'No se pudo enviar el mensaje de prueba.' });
+      // El backend devuelve { error, detalle } en 502: mostramos el detalle
+      // de Meta para que la causa sea entendible (token, verificación, etc.).
+      const detalle = err?.data?.detalle || err?.message;
+      setNotice({ type: 'error', message: detalle || 'No se pudo enviar el mensaje de prueba.' });
     } finally {
       setTesting(false);
     }

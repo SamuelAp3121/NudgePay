@@ -120,7 +120,11 @@ export async function apiFetch(path, { method = 'GET', body, apiKey, signal } = 
       (response.status === 401 || response.status === 403
         ? 'Tu sesión expiró o no has iniciado sesión. Vuelve a entrar.'
         : `Error ${response.status} al comunicarse con el servidor.`);
-    throw new ApiError(message, response.status);
+    const error = new ApiError(message, response.status);
+    // Conservamos el cuerpo completo (ej. { error, detalle }) para que la UI
+    // pueda mostrar detalles técnicos como los de la API de Meta.
+    error.data = data;
+    throw error;
   }
 
   return data;
