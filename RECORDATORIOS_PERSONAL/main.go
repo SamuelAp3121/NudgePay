@@ -31,6 +31,9 @@ func main() {
 	// 2. SERVIDOR HTTP CON FIBER
 	app := fiber.New()
 
+	// --- Webhook de la pasarela de pagos (lo llama el proveedor) ---
+	app.Post("/webhook", handlers.HandleWebhook)
+
 	// CORS: permite que el frontend de Next.js llame a la API desde otro origen.
 	app.Use(middleware.CORS())
 
@@ -59,8 +62,7 @@ func main() {
 	app.Get("/public/facturas/:token", handlers.ObtenerFacturaPublica)
 	app.Post("/public/facturas/:token/cuotas/:numero/pagar", handlers.PagarCuotaPublica)
 
-	// --- Webhook de la pasarela de pagos (lo llama el proveedor) ---
-	app.Post("/webhook", handlers.HandleWebhook)
+	
 
 	// --- Rutas protegidas (cookie de sesion o X-API-Key) ---
 	api := app.Group("/api/v1", middleware.AuthMiddleware())
