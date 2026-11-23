@@ -14,7 +14,27 @@ export const WOMPI_CHECKOUT_URL = 'https://checkout.wompi.co/p/';
  * @param {{ public_key: string, moneda: string, monto_centavos: number, referencia: string, signature: string, redirect_url?: string, email?: string }} data
  */
 export function abrirCheckoutWompi(data) {
-  if (typeof document === 'undefined') return;
+  if (typeof document === 'undefined') return false;
+
+  // Validación temprana: si falta un dato del backend, Wompi respondería
+  // "Parámetro X no proveído" y el usuario no sabría por qué. Fallamos aquí
+  // con un mensaje claro en lugar de enviar un formulario incompleto.
+  const requeridos = {
+    'public-key': data?.public_key,
+    currency: data?.moneda,
+    'amount-in-cents': data?.monto_centavos,
+    reference: data?.referencia,
+    'signature:integrity': data?.signature,
+  };
+  const faltantes = Object.entries(requeridos)
+    .filter(([, valor]) => valor === undefined || valor === null || valor === '')
+    .map(([campo]) => campo);
+  if (faltantes.length > 0) {
+    throw new Error(
+      `El backend no devolvió datos completos del checkout (faltan: ${faltantes.join(', ')}). ` +
+        'Verifica que el servidor tenga WOMPI_PUBLIC_KEY y WOMPI_INTEGRITY_SECRET y que esté actualizado.',
+    );
+  }
 
   const redirectUrl = data.redirect_url || `${window.location.origin}/billing?pago=ok`;
 
@@ -46,4 +66,5 @@ export function abrirCheckoutWompi(data) {
 
   document.body.appendChild(form);
   form.submit();
+  return true;
 }

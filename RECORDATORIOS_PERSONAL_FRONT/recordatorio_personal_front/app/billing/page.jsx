@@ -132,7 +132,15 @@ function BillingContent() {
 
   const irAPasarela = () => {
     if (!orden) return;
-    abrirCheckoutWompi(orden);
+    try {
+      abrirCheckoutWompi(orden);
+    } catch (err) {
+      setNotice({
+        type: 'error',
+        title: 'No se pudo abrir la pasarela',
+        message: err?.message || 'Datos de pago incompletos.',
+      });
+    }
   };
 
   /** Activa Pro sin pasarela (solo si el backend lo permite en desarrollo). */
