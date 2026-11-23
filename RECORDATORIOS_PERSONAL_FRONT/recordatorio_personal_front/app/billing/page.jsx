@@ -14,6 +14,23 @@ import {
 import { useSession } from '@/lib/auth';
 import { abrirCheckoutWompi } from '@/lib/wompi';
 
+/**
+ * Formatea un monto según su moneda. El backend define la moneda real del
+ * cobro (por defecto COP); evita mezclar precios en USD con cobros en COP.
+ */
+function formatearPrecio(monto, moneda = 'COP') {
+  try {
+    return new Intl.NumberFormat('es-CO', {
+      style: 'currency',
+      currency: moneda,
+      minimumFractionDigits: moneda === 'COP' ? 0 : 2,
+      maximumFractionDigits: moneda === 'COP' ? 0 : 2,
+    }).format(Number(monto) || 0);
+  } catch {
+    return `$${Number(monto) || 0} ${moneda}`;
+  }
+}
+
 const PLANS = [
   {
     id: 'free',
@@ -32,7 +49,9 @@ const PLANS = [
   {
     id: 'pro',
     name: 'Pro',
-    price: '$19',
+    // El precio real lo define el backend (precio_cop + moneda). El valor fijo
+    // '$19' (USD) confundía: el cobro real se hace en COP ($19.900).
+    price: null,
     period: 'por mes',
     description: 'Para freelancers y negocios que cobran de forma recurrente.',
     features: [
@@ -56,7 +75,7 @@ function BillingContent() {
   const [error, setError] = useState('');
   const [checkoutPlan, setCheckoutPlan] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [pasarela, setPasarela] = useState({ configurada: false, precioCop: 0 });
+  const [pasarela, setPasarela] = useState({ configurada: false, precioCop: 0, moneda: 'COP' });
   const [orden, setOrden] = useState(null); // datos del checkout pendiente
   const [working, setWorking] = useState(false);
   const [historial, setHistorial] = useState([]);
@@ -76,7 +95,11 @@ function BillingContent() {
         // El backend devuelve -1 para planes ilimitados
         limit: limit > 0 ? limit : 20,
       });
-      setPasarela({ configurada: Boolean(data?.configurada), precioCop: Number(data?.precio_cop || 0) });
+      setPasarela({
+        configurada: Boolean(data?.configurada),
+        precioCop: Number(data?.precio_cop || 0),
+        moneda: data?.moneda || 'COP',
+      });
       setHistorial(data?.suscripciones || []);
     } catch (err) {
       setError(err?.message || 'No se pudo obtener tu plan actual.');
@@ -244,7 +267,11 @@ function BillingContent() {
                   <p className="mt-1 text-sm text-slate-500">{item.description}</p>
 
                   <div className="mt-5 flex items-baseline gap-1.5">
-                    <span className="text-4xl font-bold tracking-tight text-slate-900">{item.price}</span>
+                    <span className="text-4xl font-bold tracking-tight text-slate-900">
+                      {item.id === 'pro' && pasarela.precioCop > 0
+                        ? formatearPrecio(pasarela.precioCop, pasarela.moneda)
+                        : item.price}
+                    </span>
                     <span className="text-sm text-slate-500">/ {item.period}</span>
                   </div>
 
@@ -354,7 +381,8 @@ function BillingContent() {
                 Cancelar
               </button>
               <button type="button" className="btn-primary" onClick={irAPasarela} disabled={working}>
-                Ir a pagar {pasarela.precioCop ? `$${pasarela.precioCop.toLocaleString('es-CO')} COP` : ''}
+                Ir a pagar{' '}
+                {pasarela.precioCop ? formatearPrecio(pasarela.precioCop, pasarela.moneda) : ''}
               </button>
             </>
           ) : (
@@ -381,12 +409,14 @@ function BillingContent() {
           <div className="flex items-center justify-between">
             <span>Plan {checkoutPlan?.name}</span>
             <span className="font-semibold text-slate-900">
-              {checkoutPlan?.price} / {checkoutPlan?.period}
+              {checkoutPlan?.id === 'pro' && pasarela.precioCop > 0
+                ? formatearPrecio(pasarela.precioCop, pasarela.moneda)
+                : `${checkoutPlan?.price ?? ''} / ${checkoutPlan?.period ?? ''}`}
             </span>
           </div>
           {pasarela.precioCop > 0 && (
             <p className="mt-1 text-xs text-slate-500">
-              Cobro en COP: ${pasarela.precioCop.toLocaleString('es-CO')}
+              Cobro en {pasarela.moneda}: {formatearPrecio(pasarela.precioCop, pasarela.moneda)}
             </p>
           )}
           <p className="mt-2 text-xs text-slate-500">
@@ -403,7 +433,7 @@ function BillingContent() {
           )}
         </div>
 
-        {orden?.referencia && (
+        {orden?.referencia && process.env.NODE_ENV !== 'production' && (
           <button
             type="button"
             onClick={handleSimular}

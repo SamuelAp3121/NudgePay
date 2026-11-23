@@ -100,18 +100,6 @@ export default function SettingsPage() {
 
             <dl className="mt-5 divide-y divide-slate-100 rounded-xl border border-slate-200">
               <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <dt className="text-sm font-medium text-slate-600">URL base</dt>
-                <dd className="truncate font-mono text-sm text-slate-900">{API_URL}</dd>
-              </div>
-              <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <dt className="text-sm font-medium text-slate-600">Header de autenticación</dt>
-                <dd className="font-mono text-sm text-slate-900">X-API-Key</dd>
-              </div>
-              <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                <dt className="text-sm font-medium text-slate-600">Endpoint de facturas</dt>
-                <dd className="truncate font-mono text-sm text-slate-900">/api/v1/facturas</dd>
-              </div>
-              <div className="flex flex-col gap-1 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <dt className="text-sm font-medium text-slate-600">Estado del backend</dt>
                 <dd className="text-sm">
                   {loadingUsage ? (
@@ -153,15 +141,16 @@ export default function SettingsPage() {
               </Alert>
             )}
 
-            <div className="mt-5 rounded-xl bg-slate-900 p-4">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
-                Ejemplo de petición
-              </p>
-              <pre className="overflow-x-auto text-xs leading-relaxed text-slate-200">
-                <code>{`curl ${API_URL}/api/v1/facturas \\
-  -H "X-API-Key: ${apiKey ? '••••••••' : 'TU_API_KEY'}"`}</code>
-              </pre>
-            </div>
+            {apiKey && (
+              <div className="mt-5 rounded-xl bg-slate-900 p-4">
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+                  Ejemplo de petición
+                </p>
+                <pre className="overflow-x-auto text-xs leading-relaxed text-slate-200">
+                  <code>{`curl /api/v1/facturas -H "X-API-Key: ••••••••"`}</code>
+                </pre>
+              </div>
+            )}
           </section>
         </div>
 
