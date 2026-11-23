@@ -70,17 +70,28 @@ func HandleWebhook(c *fiber.Ctx) error {
 		return c.JSON(fiber.Map{"mensaje": "Evento ignorado", "estado": tx.Status})
 	}
 
-	// 2) Suscripción Pro: la referencia empieza por PRO-
-	if strings.HasPrefix(tx.Reference, "PRO-") {
-		encontrada, err := ActivarSuscripcion(tx.Reference, tx.ID)
+	// 2) Suscripción Pro: la referencia empieza por PRO- (insensible a mayúsculas,
+	// por si Wompi la transforma). Si no empieza por PRO- pero existe en la tabla
+	// suscripciones, también se intenta activar (protege referencias legadas).
+	referencia := strings.TrimSpace(tx.Reference)
+	esSuscripcion := strings.HasPrefix(strings.ToUpper(referencia), "PRO-")
+	if !esSuscripcion {
+		var existe bool
+		_ = config.DB.QueryRow(`SELECT EXISTS (SELECT 1 FROM suscripciones WHERE referencia = $1)`, referencia).Scan(&existe)
+		esSuscripcion = existe
+	}
+	if esSuscripcion {
+		encontrada, err := ActivarSuscripcion(referencia, tx.ID)
 		if err != nil {
+			log.Printf("Webhook: error activando suscripción (ref=%s, tx=%s): %v", referencia, tx.ID, err)
 			return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo activar la suscripción", "detalle": err.Error()})
 		}
 		if !encontrada {
+			log.Printf("Webhook: suscripción no encontrada (ref=%s, tx=%s)", referencia, tx.ID)
 			return c.Status(http.StatusNotFound).JSON(fiber.Map{"error": "Suscripción no encontrada"})
 		}
-		log.Printf("Plan Pro activado por webhook (ref=%s, tx=%s)", tx.Reference, tx.ID)
-		return c.JSON(fiber.Map{"mensaje": "Suscripción activada", "referencia": tx.Reference})
+		log.Printf("Plan Pro activado por webhook (ref=%s, tx=%s)", referencia, tx.ID)
+		return c.JSON(fiber.Map{"mensaje": "Suscripción activada", "referencia": referencia})
 	}
 
 	// 3) Referencia de cuota: <factura_id>:<numero_cuota>

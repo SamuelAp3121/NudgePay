@@ -1,6 +1,8 @@
 package middleware
 
 import (
+	"invoice-reminder/config"
+	"log"
 	"net/http"
 
 	"github.com/gofiber/fiber/v2"
@@ -13,6 +15,11 @@ const RolAdmin = "admin"
 // Debe usarse SIEMPRE después de AuthMiddleware (que deja "rol" en el contexto).
 func AdminMiddleware() fiber.Handler {
 	return func(c *fiber.Ctx) error {
+		// Si la base no tiene la columna rol (migración pendiente), nadie puede
+		// ser admin. Lo registramos una vez para que el fallo sea diagnosable.
+		if !config.MigracionAdminAplicada() {
+			log.Println("AdminMiddleware bloqueado: falta la migración admin en la base de datos")
+		}
 		rol, _ := c.Locals("rol").(string)
 		if rol != RolAdmin {
 			return c.Status(http.StatusForbidden).JSON(fiber.Map{

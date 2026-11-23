@@ -19,6 +19,7 @@ var (
 	columnasOnce    sync.Once
 	columnasCache   = map[string]bool{}
 	migracionAplica bool
+	migracionAdmin  bool
 )
 
 // columnaExiste consulta information_schema (con caché por nombre).
@@ -65,4 +66,20 @@ func MigracionWhatsAppAplicada() bool {
 		}
 	})
 	return migracionAplica
+}
+
+// MigracionAdminAplicada indica si la base tiene las columnas del panel de
+// administración (rol, suspensión). Si falta, la autenticación degrada:
+// nadie tendría rol 'admin' y el panel /admin no sería accesible.
+func MigracionAdminAplicada() bool {
+	columnasOnce.Do(func() {
+		migracionAdmin = columnaExiste("usuarios", "rol") && columnaExiste("usuarios", "suspendido")
+		if migracionAdmin {
+			log.Println("✅ Esquema Admin: columnas presentes")
+		} else {
+			log.Println("⚠️  AVISO: falta aplicar la migración admin (fix_admin_migration.sql).")
+			log.Println("    El panel /admin quedará inaccesible porque ningún usuario tendrá rol 'admin'.")
+		}
+	})
+	return migracionAdmin
 }
