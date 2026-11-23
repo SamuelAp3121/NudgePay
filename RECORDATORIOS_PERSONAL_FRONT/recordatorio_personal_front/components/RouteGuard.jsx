@@ -6,7 +6,7 @@ import { isAdmin, useSession } from '@/lib/auth';
 import { Spinner } from './ui';
 
 // Rutas públicas: no requieren sesión.
-const PUBLIC_ROUTES = ['/login', '/register', '/forgot-password', '/reset-password'];
+const PUBLIC_ROUTES = ['/', '/login', '/register', '/forgot-password', '/reset-password'];
 
 /** El portal de pago del cliente (/pay/<token>) es público. */
 function esRutaPublica(pathname) {

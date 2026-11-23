@@ -115,15 +115,35 @@ function BillingContent() {
     setNotice(null);
     try {
       const data = await crearCheckout('pro');
+
+      // Verificación dura: si el backend no devolvió los datos firmados
+      // (401 de sesión expirada, 503 sin credenciales, etc.), no seguimos.
+      const incompleto =
+        !data?.public_key || !data?.signature || !data?.referencia || !data?.monto_centavos || !data?.moneda;
+      if (incompleto) {
+        throw new Error(
+          'El servidor no devolvió los datos del pago completos. ' +
+            'Verifica tu sesión y que el backend tenga WOMPI_PUBLIC_KEY y WOMPI_INTEGRITY_SECRET.',
+        );
+      }
+
       setOrden(data);
     } catch (err) {
       setCheckoutPlan(null);
+      setOrden(null);
       setNotice({
         type: 'error',
-        title: err?.status === 503 ? 'Pasarela no configurada' : 'No se pudo iniciar el pago',
+        title:
+          err?.status === 401
+            ? 'Tu sesión expiró'
+            : err?.status === 503
+              ? 'Pasarela no configurada'
+              : 'No se pudo iniciar el pago',
         message:
           err?.message ||
-          'Define WOMPI_PUBLIC_KEY y WOMPI_INTEGRITY_SECRET en el backend para habilitar los pagos.',
+          (err?.status === 401
+            ? 'Vuelve a iniciar sesión e intenta de nuevo.'
+            : 'Define WOMPI_PUBLIC_KEY y WOMPI_INTEGRITY_SECRET en el backend para habilitar los pagos.'),
       });
     } finally {
       setWorking(false);
