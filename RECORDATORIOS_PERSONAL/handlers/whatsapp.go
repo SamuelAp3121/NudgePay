@@ -226,9 +226,18 @@ func EnviarWhatsAppPrueba(c *fiber.Ctx) error {
 	cfg := configWhatsAppDelUsuario(usuarioID)
 	if err := services.EnviarWhatsAppPrueba(cfg, telefono); err != nil {
 		if errors.Is(err, services.ErrWhatsAppNoConfigurado) {
-			return c.Status(http.StatusServiceUnavailable).JSON(fiber.Map{"error": err.Error()})
+			return c.Status(http.StatusServiceUnavailable).JSON(fiber.Map{
+				"error": "WhatsApp no está configurado. Define WHATSAPP_TOKEN y WHATSAPP_PHONE_NUMBER_ID en el servidor (Render → Environment) o guarda tus credenciales en Configuración → WhatsApp.",
+			})
 		}
-		return c.Status(http.StatusBadGateway).JSON(fiber.Map{"error": "No se pudo enviar el mensaje de prueba", "detalle": err.Error()})
+		// 502 con detalle legible: Meta responde con JSON ({"error":{"message":...}});
+		// lo propagamos tal cual para que se entienda la causa (token inválido,
+		// destinatario no verificado, plantilla faltante, etc.).
+		detalle := err.Error()
+		return c.Status(http.StatusBadGateway).JSON(fiber.Map{
+			"error":   "No se pudo enviar el mensaje de prueba vía WhatsApp",
+			"detalle": detalle,
+		})
 	}
 
 	return c.JSON(fiber.Map{"mensaje": "Mensaje de prueba enviado por WhatsApp", "telefono": telefono})
