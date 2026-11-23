@@ -39,6 +39,28 @@ type WompiEvent struct {
 }
 
 // HandleWebhook recibe los eventos de la pasarela (Wompi) y concilia el pago.
+// HandleWebhookVerification responde la verificación de webhook de Meta
+// (WhatsApp Cloud API): GET /webhook con hub.mode, hub.verify_token y
+// hub.challenge. Meta exige que el endpoint devuelva el challenge tal cual
+// cuando el verify token coincide.
+//
+// Variables: WHATSAPP_VERIFY_TOKEN (el valor que usted ponga en Meta y aquí).
+func HandleWebhookVerification(c *fiber.Ctx) error {
+	mode := c.Query("hub.mode")
+	token := c.Query("hub.verify_token")
+	challenge := c.Query("hub.challenge")
+
+	esperado := strings.TrimSpace(os.Getenv("WHATSAPP_VERIFY_TOKEN"))
+
+	if mode == "subscribe" && esperado != "" && token == esperado && challenge != "" {
+		log.Println("Webhook de Meta verificado correctamente")
+		return c.SendString(challenge)
+	}
+
+	log.Printf("Verificación de webhook de Meta rechazada (mode=%s, token_ok=%v)", mode, token == esperado && esperado != "")
+	return c.SendStatus(http.StatusForbidden)
+}
+
 // POST /webhook
 //
 // La referencia de la transaccion debe tener el formato: <factura_id>:<numero_cuota>
@@ -52,6 +74,18 @@ func HandleWebhook(c *fiber.Ctx) error {
 	if err := json.Unmarshal(body, &event); err != nil {
 		log.Printf("Webhook: JSON invalido (%d bytes): %v", len(body), err)
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "JSON invalido"})
+	}
+
+	// Evento de Meta (WhatsApp Business): {"object":"whatsapp_business_account",...}
+	// No coincide con la estructura de Wompi (Event quedaria vacio). Se registra
+	// y se confirma con 200 para que Meta no reintente durante 7 dias.
+	var meta struct {
+		Object string `json:"object"`
+	}
+	_ = json.Unmarshal(body, &meta)
+	if meta.Object == "whatsapp_business_account" {
+		log.Printf("Webhook Meta (WhatsApp) recibido: %d bytes", len(body))
+		return c.JSON(fiber.Map{"mensaje": "Evento de WhatsApp recibido"})
 	}
 
 	// 1) Verificar la firma si hay secreto configurado.

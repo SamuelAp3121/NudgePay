@@ -32,6 +32,9 @@ func main() {
 	app := fiber.New()
 
 	// --- Webhook de la pasarela de pagos (lo llama el proveedor) ---
+	// GET  /webhook → verificación de Meta (WhatsApp Cloud API)
+	// POST /webhook → eventos de Wompi y de Meta
+	app.Get("/webhook", handlers.HandleWebhookVerification)
 	app.Post("/webhook", handlers.HandleWebhook)
 
 	// CORS: permite que el frontend de Next.js llame a la API desde otro origen.
