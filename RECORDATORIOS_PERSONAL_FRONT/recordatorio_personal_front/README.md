@@ -187,7 +187,8 @@ resuelve el SSL automáticamente:
 
 ```bash
 # PRODUCCIÓN — Supabase (SSL obligatorio)
-DATABASE_URL=postgres://postgres.PROYECTO:CLAVE@aws-0-us-east-1.pooler.supabase.com:6543/postgres?sslmode=require
+DATABASE_URL=postgresql://postgres.jwsccingaxeqayalbgxy:Toquepay1025@aws-0-us-east-1.pooler.supabase.com:5432/postgres
+#sslmode=require
 
 # PRODUCCIÓN — PostgreSQL propio con certificado
 DATABASE_URL=postgres://usuario:clave@db.midominio.com:5432/toquepay?sslmode=verify-full&sslrootcert=certs/ca.pem
