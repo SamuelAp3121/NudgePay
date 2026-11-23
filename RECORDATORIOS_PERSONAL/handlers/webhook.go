@@ -1,7 +1,6 @@
 package handlers
 
 import (
-	"crypto/hmac"
 	"crypto/sha256"
 	"database/sql"
 	"encoding/hex"
@@ -163,11 +162,10 @@ func firmaValida(event WompiEvent, secret string) bool {
 	cadena.WriteString(strconv.FormatInt(event.Timestamp, 10))
 	cadena.WriteString(secret)
 
-	mac := hmac.New(sha256.New, []byte(secret))
-	mac.Write([]byte(cadena.String()))
-	esperado := hex.EncodeToString(mac.Sum(nil))
+	sum := sha256.Sum256([]byte(cadena.String()))
+	esperado := hex.EncodeToString(sum[:])
 
-	return hmac.Equal([]byte(esperado), []byte(strings.ToLower(event.Signature.Checksum)))
+	return strings.EqualFold(esperado, strings.TrimSpace(event.Signature.Checksum))
 }
 
 // ListarPagos devuelve el historial de pagos de una factura del usuario.
