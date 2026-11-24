@@ -87,10 +87,10 @@ export default function Sidebar() {
   const { user } = useSession({ redirectTo: null });
   const admin = String(user?.rol || '').toLowerCase() === 'admin';
 
-  // Las pantallas de acceso y la landing se muestran a pantalla completa, sin navegación.
+  // Las pantallas de acceso y las landing se muestran a pantalla completa, sin navegación.
   const isAuthRoute =
     pathname === '/' ||
-    ['/register', '/login', '/forgot-password', '/reset-password'].includes(pathname) ||
+    ['/register', '/login', '/forgot-password', '/reset-password', '/terminos', '/privacidad'].includes(pathname) ||
     pathname.startsWith('/pay/');
 
   const handleLogout = async () => {

@@ -291,9 +291,22 @@ export default function Landing() {
 
       {/* Pie */}
       <footer className="border-t border-slate-200 py-8">
-        <div className="mx-auto flex max-w-6xl flex-col items-center gap-2 px-4 text-center sm:px-6">
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-3 px-4 text-center sm:px-6">
           <p className="text-sm font-semibold text-slate-700">ToquePay</p>
-          <p className="text-xs text-slate-500">
+          <nav className="flex flex-wrap items-center justify-center gap-4 text-xs font-medium text-slate-500">
+            <Link href="/terminos" className="transition hover:text-slate-800">
+              Términos y Condiciones
+            </Link>
+            <span aria-hidden="true">·</span>
+            <Link href="/privacidad" className="transition hover:text-slate-800">
+              Política de Privacidad
+            </Link>
+            <span aria-hidden="true">·</span>
+            <a href="mailto:soporte@toquepay.app" className="transition hover:text-slate-800">
+              Contacto
+            </a>
+          </nav>
+          <p className="text-xs text-slate-400">
             Recordatorios de facturas, pagos en línea y control de cuotas. © {new Date().getFullYear()} ToquePay.
           </p>
         </div>

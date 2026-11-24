@@ -11,9 +11,9 @@ import { useSession } from '@/lib/auth';
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 
 const BENEFITS = [
-  'Hasta 20 recordatorios automáticos al mes',
-  'Facturas ilimitadas con estados y vencimientos',
-  'Plantilla de email personalizable',
+  '10 recordatorios al mes gratis, para siempre',
+  'Facturas con estados y vencimientos',
+  'Enlace de pago para tus clientes',
   'Sin tarjeta de crédito',
 ];
 
@@ -233,8 +233,16 @@ export default function RegisterPage() {
           </button>
         </form>
 
-        <p className="mt-5 text-center text-xs text-slate-400">
-          Al registrarte aceptas recibir emails relacionados con tu cuenta.
+        <p className="mt-5 text-center text-xs text-slate-500">
+          Al crear tu cuenta aceptas los{' '}
+          <Link href="/terminos" target="_blank" className="font-semibold text-brand-600 hover:underline">
+            Términos y Condiciones
+          </Link>{' '}
+          y la{' '}
+          <Link href="/privacidad" target="_blank" className="font-semibold text-brand-600 hover:underline">
+            Política de Privacidad
+          </Link>
+          . Podemos enviarte emails relacionados con tu cuenta.
         </p>
 
         <div className="mt-6 border-t border-slate-100 pt-5 text-center text-sm text-slate-500">
