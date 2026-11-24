@@ -63,12 +63,17 @@ func EnviarRecordatorio(c *fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Error consultando las cuotas", "detalle": err.Error()})
 	}
 
-	// Límite del plan gratuito: recordatorios enviados en el mes en curso.
+	plan = NormalizarPlan(plan)
+
+	// Límite del plan: recordatorios enviados en el mes en curso.
 	// Se cuenta el histórico, así que borrar facturas NO devuelve cupo.
-	if plan != "pro" {
-		if usados := RecordatoriosUsadosMes(usuarioID); usados >= LimiteRecordatoriosFree {
+	if limite := LimiteRecordatoriosPorPlan(plan); limite >= 0 {
+		if usados := RecordatoriosUsadosMes(usuarioID); usados >= limite {
 			return c.Status(http.StatusPaymentRequired).JSON(fiber.Map{
-				"error": "Límite del plan gratuito alcanzado (20 recordatorios/mes). Actualiza a Pro para continuar.",
+				"error": "Límite del plan Gratuito alcanzado (10 recordatorios/mes). Actualiza a Pro para continuar.",
+				"limite":  limite,
+				"usados":  usados,
+				"plan":    plan,
 			})
 		}
 	}

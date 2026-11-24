@@ -79,6 +79,8 @@ func main() {
 	api.Post("/facturas", handlers.CrearFactura)
 	api.Get("/facturas/:id/cuotas", handlers.ObtenerCuotas)
 	api.Get("/facturas/:id/pagos", handlers.ListarPagos)
+	api.Get("/reportes/resumen", handlers.ObtenerResumenReportes)
+	api.Get("/reportes/csv", handlers.ExportarReporteCSV)
 	api.Post("/facturas/:id/cuotas/:numero/pagar", handlers.PagarCuota)
 	api.Post("/facturas/:id/pagar", handlers.MarcarPagada)
 	api.Post("/facturas/:id/recordatorio", handlers.EnviarRecordatorio)
@@ -137,8 +139,9 @@ func main() {
 	log.Fatal(app.Listen(":" + port))
 }
 
-// Procesa las cuotas cuya fecha de vencimiento sea dentro de los proximos 3 dias o ya vencieron.
-// Respeta el limite mensual del plan gratuito de cada usuario.
+// Procesa las cuotas próximas a vencer (ventana según el plan: Free 1 día,
+// Pro 3 días, Business 7 días) o ya vencidas. Respeta el limite mensual de
+// cada usuario y solo usa WhatsApp en planes de pago.
 func procesarRecordatoriosDiarios() {
 	log.Println("[CRON] Buscando cuotas pendientes por notificar...")
 
@@ -163,7 +166,8 @@ func procesarRecordatoriosDiarios() {
 	            AND cu.fecha_vencimiento <= $1
 	          ORDER BY cu.fecha_vencimiento ASC`
 
-	limiteFecha := time.Now().AddDate(0, 0, 3).Format("2006-01-02")
+	// Ventana máxima (Business = 7 días) y filtrado fino por plan dentro del loop.
+	limiteFecha := time.Now().AddDate(0, 0, 7).Format("2006-01-02")
 	rows, err := config.DB.Query(query, limiteFecha)
 	if err != nil {
 		log.Println("Error consultando cuotas:", err)
@@ -183,11 +187,24 @@ func procesarRecordatoriosDiarios() {
 			continue
 		}
 
-		// Limite del plan gratuito por usuario.
-		if plan != "pro" && usuarioID != "" && handlers.RecordatoriosUsadosMes(usuarioID) >= handlers.LimiteRecordatoriosFree {
-			log.Printf("Limite Free alcanzado para el usuario %s; se omite la cuota %s", usuarioID, cuotaID)
+		// Canal configurado en la factura: email | whatsapp | ambos.
+		quiereEmail := canal == "email" || canal == "ambos"
+		quiereWhatsApp := (canal == "whatsapp" || canal == "ambos") && telefono != ""
+
+		// Ventana automática por plan (Free = 1 día: el gratis avisa tarde).
+		planNorm := handlers.NormalizarPlan(plan)
+		if !dentroVentanaAuto(vencimiento, handlers.VentanaAutoDias(planNorm)) {
 			continue
 		}
+
+		// Limite del plan por usuario (los planes de pago no tienen tope).
+		if usuarioID != "" && handlers.LimiteRecordatoriosPorPlan(planNorm) >= 0 &&
+			handlers.RecordatoriosUsadosMes(usuarioID) >= handlers.LimiteRecordatoriosPorPlan(planNorm) {
+			log.Printf("Limite %s alcanzado para el usuario %s; se omite la cuota %s", planNorm, usuarioID, cuotaID)
+			continue
+		}
+		// WhatsApp automático solo para planes de pago.
+		quiereWhatsApp = quiereWhatsApp && handlers.PuedeUsarWhatsApp(planNorm)
 
 		plantilla := services.PlantillaMensajePorDefecto
 		if usuarioID != "" {
@@ -203,10 +220,6 @@ func procesarRecordatoriosDiarios() {
 			CuotasTotal:   cuotas,
 			MontoTotal:    montoTotal,
 		}
-
-		// Canal configurado en la factura: email | whatsapp | ambos.
-		quiereEmail := canal == "email" || canal == "ambos"
-		quiereWhatsApp := (canal == "whatsapp" || canal == "ambos") && telefono != ""
 
 		algunoEnviado := false
 
@@ -254,4 +267,18 @@ func procesarRecordatoriosDiarios() {
 	}
 
 	log.Printf("[CRON] Recordatorios enviados: %d", enviados)
+}
+
+// dentroVentanaAuto indica si el vencimiento (YYYY-MM-DD) está dentro de la
+// ventana automática del plan: vencidas siempre entran; futuras solo si
+// faltan <= dias.
+func dentroVentanaAuto(vencimiento string, dias int) bool {
+	v, err := time.Parse("2006-01-02", vencimiento)
+	if err != nil {
+		return true
+	}
+	hoy := time.Now()
+	hoyCero := time.Date(hoy.Year(), hoy.Month(), hoy.Day(), 0, 0, 0, 0, hoy.Location())
+	diffDias := int(v.Sub(hoyCero).Hours() / 24)
+	return diffDias <= dias
 }

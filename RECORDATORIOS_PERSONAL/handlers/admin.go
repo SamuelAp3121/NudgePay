@@ -68,9 +68,10 @@ func parsePaginacion(c *fiber.Ctx) (page, limit, offset int) {
 func AdminResumen(c *fiber.Ctx) error {
 	resumen := fiber.Map{}
 
-	var usuarios, usuariosPro, usuariosSuspendidos, usuariosNuevosMes int
+	var usuarios, usuariosPro, usuariosBusiness, usuariosSuspendidos, usuariosNuevosMes int
 	_ = config.DB.QueryRow(`SELECT COUNT(*) FROM usuarios`).Scan(&usuarios)
 	_ = config.DB.QueryRow(`SELECT COUNT(*) FROM usuarios WHERE plan = 'pro'`).Scan(&usuariosPro)
+	_ = config.DB.QueryRow(`SELECT COUNT(*) FROM usuarios WHERE plan = 'business'`).Scan(&usuariosBusiness)
 	_ = config.DB.QueryRow(`SELECT COUNT(*) FROM usuarios WHERE suspendido = TRUE`).Scan(&usuariosSuspendidos)
 	_ = config.DB.QueryRow(
 		`SELECT COUNT(*) FROM usuarios WHERE date_trunc('month', creado_en) = date_trunc('month', CURRENT_TIMESTAMP)`,
@@ -110,7 +111,8 @@ func AdminResumen(c *fiber.Ctx) error {
 	resumen["usuarios"] = fiber.Map{
 		"total":       usuarios,
 		"pro":         usuariosPro,
-		"free":        usuarios - usuariosPro,
+		"business":    usuariosBusiness,
+		"free":        usuarios - usuariosPro - usuariosBusiness,
 		"suspendidos": usuariosSuspendidos,
 		"nuevos_mes":  usuariosNuevosMes,
 	}
@@ -211,7 +213,7 @@ func AdminListarUsuarios(c *fiber.Ctx) error {
 		args = append(args, "%"+q+"%", q)
 		n += 2
 	}
-	if plan == "free" || plan == "pro" {
+	if plan == "free" || plan == "pro" || plan == "business" {
 		where = append(where, "COALESCE(u.plan, 'free') = $"+strconv.Itoa(n))
 		args = append(args, plan)
 		n++
@@ -462,14 +464,11 @@ func AdminDetalleUsuario(c *fiber.Ctx) error {
 
 // limiteDelPlan devuelve el límite mensual de recordatorios (-1 = ilimitado).
 func limiteDelPlan(plan string) int {
-	if plan == "pro" {
-		return -1
-	}
-	return LimiteRecordatoriosFree
+	return LimiteRecordatoriosPorPlan(plan)
 }
 
 // AdminCambiarPlan sube o baja el plan de un usuario manualmente (soporte).
-// PATCH /api/v1/admin/usuarios/:id/plan  { "plan": "pro"|"free", "dias": 30 }
+// PATCH /api/v1/admin/usuarios/:id/plan  { "plan": "pro"|"business"|"free", "dias": 30 }
 func AdminCambiarPlan(c *fiber.Ctx) error {
 	id := c.Params("id")
 	var body struct {
@@ -479,10 +478,11 @@ func AdminCambiarPlan(c *fiber.Ctx) error {
 	if err := c.BodyParser(&body); err != nil {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "JSON inválido"})
 	}
-	plan := strings.ToLower(strings.TrimSpace(body.Plan))
-	if plan != "pro" && plan != "free" {
-		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "El plan debe ser 'pro' o 'free'"})
+	crudo := strings.ToLower(strings.TrimSpace(body.Plan))
+	if crudo != PlanPro && crudo != PlanBusiness && crudo != PlanFree {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "El plan debe ser 'pro', 'business' o 'free'"})
 	}
+	plan := NormalizarPlan(crudo)
 	if body.Dias <= 0 {
 		body.Dias = 30
 	}
@@ -496,13 +496,13 @@ func AdminCambiarPlan(c *fiber.Ctx) error {
 	}
 
 	var err error
-	if plan == "pro" {
-		_, err = config.DB.Exec(
-			`UPDATE usuarios SET plan = 'pro', plan_expira_en = CURRENT_TIMESTAMP + ($2 || ' days')::interval WHERE id = $1`,
-			id, body.Dias,
-		)
-	} else {
+	if plan == PlanFree {
 		_, err = config.DB.Exec(`UPDATE usuarios SET plan = 'free', plan_expira_en = NULL WHERE id = $1`, id)
+	} else {
+		_, err = config.DB.Exec(
+			`UPDATE usuarios SET plan = $2, plan_expira_en = CURRENT_TIMESTAMP + ($3 || ' days')::interval WHERE id = $1`,
+			id, plan, body.Dias,
+		)
 	}
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo cambiar el plan", "detalle": err.Error()})

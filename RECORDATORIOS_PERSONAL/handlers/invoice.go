@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"database/sql"
+	"fmt"
 	"invoice-reminder/config"
 	"invoice-reminder/models"
 	"invoice-reminder/services"
@@ -93,6 +94,8 @@ func CrearFactura(c *fiber.Ctx) error {
 
 	// El dueño de la factura SIEMPRE es el usuario de la sesión (nunca el body).
 	usuarioID, _ := c.Locals("usuario_id").(string)
+	plan, _ := c.Locals("plan").(string)
+	plan = NormalizarPlan(plan)
 
 	f.ClienteNombre = strings.TrimSpace(f.ClienteNombre)
 	f.ClienteEmail = strings.TrimSpace(strings.ToLower(f.ClienteEmail))
@@ -104,9 +107,15 @@ func CrearFactura(c *fiber.Ctx) error {
 	}
 
 	// Canal de recordatorio: email | whatsapp | ambos.
+	// WhatsApp es beneficio de pago: el plan Free solo puede usar email.
 	canal, canalOK := normalizarCanal(f.CanalRecordatorio)
 	if !canalOK {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "canal_recordatorio debe ser 'email', 'whatsapp' o 'ambos'"})
+	}
+	if (canal == "whatsapp" || canal == "ambos") && !PuedeUsarWhatsApp(plan) {
+		return c.Status(http.StatusPaymentRequired).JSON(fiber.Map{
+			"error": "Los recordatorios por WhatsApp son del plan Pro en adelante. Tu factura se puede crear con canal 'email', o actualiza tu plan.",
+		})
 	}
 	f.CanalRecordatorio = canal
 
@@ -134,6 +143,24 @@ func CrearFactura(c *fiber.Ctx) error {
 	}
 	if f.Cuotas > MaxCuotas {
 		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "El número de cuotas no puede superar 60"})
+	}
+	// Tope de cuotas por plan: Free solo hasta 3 cuotas (pago casi único).
+	if maxPorPlan := MaxCuotasPorPlan(plan); f.Cuotas > maxPorPlan {
+		return c.Status(http.StatusPaymentRequired).JSON(fiber.Map{
+			"error": fmt.Sprintf("Tu plan %s permite hasta %d cuotas por factura. Actualiza tu plan para más cuotas.", NombrePlan(plan), maxPorPlan),
+			"max_cuotas": maxPorPlan,
+			"plan":       plan,
+		})
+	}
+	// Tope de facturas pendientes simultáneas en Free.
+	if limiteF := LimiteFacturasPorPlan(plan); limiteF >= 0 {
+		var pendientes int
+		_ = config.DB.QueryRow(`SELECT COUNT(*) FROM facturas WHERE usuario_id = $1 AND estado <> 'pagada'`, usuarioID).Scan(&pendientes)
+		if pendientes >= limiteF {
+			return c.Status(http.StatusPaymentRequired).JSON(fiber.Map{
+				"error": "Llegaste al límite del plan Gratuito (10 facturas pendientes). Marca alguna como pagada o actualiza a Pro para facturas ilimitadas.",
+			})
+		}
 	}
 
 	// Validar la fecha de la primera cuota.

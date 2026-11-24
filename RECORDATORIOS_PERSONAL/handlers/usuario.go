@@ -7,8 +7,9 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// LimiteRecordatoriosFree es el máximo de recordatorios mensuales del plan gratuito.
-const LimiteRecordatoriosFree = 20
+// LimiteRecordatoriosFree se mantiene por compatibilidad: el valor real vive
+// en planes.go. No lo uses directamente; usa LimiteRecordatoriosPorPlan().
+const LimiteRecordatoriosFree = 10
 
 // RecordatoriosUsadosMes cuenta los recordatorios enviados por el usuario en el mes en curso.
 //

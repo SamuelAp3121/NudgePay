@@ -47,6 +47,49 @@ func firmaIntegridad(referencia string, montoCentavos int, moneda, secreto strin
 	return hex.EncodeToString(suma[:])
 }
 
+// planesPublicos es el catálogo que ve la UI: límites y precios por plan.
+func planesPublicos(precioProCOP int, precioBusinessCOP int) []fiber.Map {
+	return []fiber.Map{
+		{
+			"id":                      PlanFree,
+			"nombre":                  "Gratuito",
+			"precio_cop":              0,
+			"recordatorios_mes":       LimiteRecordatoriosFree,
+			"facturas_pendientes":     LimiteFacturasFree,
+			"max_cuotas":              MaxCuotasFree,
+			"whatsapp":                false,
+			"plantilla":               false,
+			"reportes":                false,
+			"recordatorios_automaticos": "1 día antes",
+		},
+		{
+			"id":                      PlanPro,
+			"nombre":                  "Pro",
+			"precio_cop":              precioProCOP,
+			"recordatorios_mes":       -1,
+			"facturas_pendientes":     -1,
+			"max_cuotas":              MaxCuotasPro,
+			"whatsapp":                true,
+			"plantilla":               true,
+			"reportes":                true,
+			"recordatorios_automaticos": "7, 3 y 1 día antes",
+		},
+		{
+			"id":                      PlanBusiness,
+			"nombre":                  "Business",
+			"precio_cop":              precioBusinessCOP,
+			"recordatorios_mes":       -1,
+			"facturas_pendientes":     -1,
+			"max_cuotas":              MaxCuotasBusiness,
+			"whatsapp":                true,
+			"plantilla":               true,
+			"reportes":                true,
+			"reportes_avanzados":      true,
+			"recordatorios_automaticos": "7 días antes + seguimiento",
+		},
+	}
+}
+
 // ObtenerSuscripcion devuelve el plan actual y el historial de suscripciones.
 // GET /api/v1/billing/suscripcion
 func ObtenerSuscripcion(c *fiber.Ctx) error {
@@ -88,17 +131,53 @@ func ObtenerSuscripcion(c *fiber.Ctx) error {
 		"usuario":       perfil,
 		"precio_usd":    PlanProPrecioUSD,
 		"precio_cop":    PlanProPrecioCentavos / 100,
+		"precio_business_cop": PlanBusinessPrecioCentavos / 100,
+		"precio_business_usd": PlanBusinessPrecioUSD,
 		"pasarela":      "wompi",
 		"configurada":   configurado,
 		"suscripciones": historial,
 		"moneda":        "COP",
+		"planes":        planesPublicos(PlanProPrecioCentavos/100, PlanBusinessPrecioCentavos/100),
 	})
 }
 
+// precioPlanCentavos devuelve el precio en centavos del plan de pago.
+func precioPlanCentavos(plan string) (int, bool) {
+	switch NormalizarPlan(plan) {
+	case PlanPro:
+		return PlanProPrecioCentavos, true
+	case PlanBusiness:
+		return PlanBusinessPrecioCentavos, true
+	default:
+		return 0, false
+	}
+}
+
+// prefijoPlan es el prefijo de referencia de la pasarela (PRO- / BUS-).
+func prefijoPlan(plan string) string {
+	if NormalizarPlan(plan) == PlanBusiness {
+		return "BUS-"
+	}
+	return "PRO-"
+}
+
 // CrearCheckout genera los datos firmados para abrir el checkout de Wompi.
-// POST /api/v1/billing/checkout  { "plan": "pro" }
+// POST /api/v1/billing/checkout  { "plan": "pro" | "business" }
 func CrearCheckout(c *fiber.Ctx) error {
 	usuarioID, _ := c.Locals("usuario_id").(string)
+
+	var body struct {
+		Plan string `json:"plan"`
+	}
+	_ = c.BodyParser(&body)
+	planPedido := NormalizarPlan(body.Plan)
+	if planPedido == PlanFree {
+		// Por defecto (o plan inválido) se vende Pro para no romper clientes viejos.
+		if strings.TrimSpace(body.Plan) != "" {
+			return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "El plan debe ser 'pro' o 'business'"})
+		}
+		planPedido = PlanPro
+	}
 
 	publicKey, integritySecret, configurado := wompiConfig()
 	if !configurado {
@@ -107,37 +186,46 @@ func CrearCheckout(c *fiber.Ctx) error {
 		})
 	}
 
-	// ¿Ya es Pro? No se permite doble cobro.
-	var plan sql.NullString
-	_ = config.DB.QueryRow(`SELECT plan FROM usuarios WHERE id = $1`, usuarioID).Scan(&plan)
-	if plan.String == "pro" {
-		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": "Ya tienes el plan Pro activo"})
+	centavos, ok := precioPlanCentavos(planPedido)
+	if !ok {
+		return c.Status(http.StatusBadRequest).JSON(fiber.Map{"error": "Plan no válido"})
+	}
+
+	// Si ya tiene ese plan (o uno superior), no se permite doble cobro.
+	var planActual sql.NullString
+	_ = config.DB.QueryRow(`SELECT plan FROM usuarios WHERE id = $1`, usuarioID).Scan(&planActual)
+	actual := NormalizarPlan(planActual.String)
+	if actual == planPedido {
+		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": "Ya tienes el plan " + NombrePlan(actual) + " activo"})
+	}
+	if actual == PlanBusiness && planPedido == PlanPro {
+		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": "Ya tienes el plan Business activo, que incluye todo lo de Pro"})
 	}
 
 	buf := make([]byte, 12)
 	if _, err := rand.Read(buf); err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo generar la referencia"})
 	}
-	// Referencia única con prefijo PRO. El webhook la interpreta para activar el plan.
-	referencia := "PRO-" + usuarioID + "-" + hex.EncodeToString(buf)
+	// Referencia única con prefijo PRO-/BUS-. El webhook la interpreta para activar el plan.
+	referencia := prefijoPlan(planPedido) + usuarioID + "-" + hex.EncodeToString(buf)
 
 	var email string
 	_ = config.DB.QueryRow(`SELECT email FROM usuarios WHERE id = $1`, usuarioID).Scan(&email)
 
 	moneda := "COP"
-	centavos := PlanProPrecioCentavos
 	firma := firmaIntegridad(referencia, centavos, moneda, integritySecret)
 
 	if _, err := config.DB.Exec(
 		`INSERT INTO suscripciones (usuario_id, referencia, plan, estado, monto, moneda)
-		 VALUES ($1, $2, 'pro', 'pendiente', $3, $4)`,
-		usuarioID, referencia, float64(centavos)/100, moneda,
+		 VALUES ($1, $2, $3, 'pendiente', $4, $5)`,
+		usuarioID, referencia, planPedido, float64(centavos)/100, moneda,
 	); err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo crear la orden", "detalle": err.Error()})
 	}
 
 	return c.JSON(fiber.Map{
 		"referencia":     referencia,
+		"plan":           planPedido,
 		"monto_centavos": centavos,
 		"moneda":         moneda,
 		"public_key":     publicKey,
@@ -147,15 +235,17 @@ func CrearCheckout(c *fiber.Ctx) error {
 	})
 }
 
-// ActivarSuscripcion marca la suscripción como pagada y sube al usuario a Pro.
-// Se usa desde el webhook (o desde el panel para pruebas con el modo simulación).
+// ActivarSuscripcion marca la suscripción como pagada y sube al usuario al
+// plan comprado (pro o business). Se usa desde el webhook (o desde el panel
+// para pruebas con el modo simulación).
 func ActivarSuscripcion(referencia, transaccionID string) (bool, error) {
 	var usuarioID string
 	var estado string
+	var planSuscripcion sql.NullString
 	err := config.DB.QueryRow(
-		`SELECT usuario_id, estado FROM suscripciones WHERE referencia = $1`,
+		`SELECT usuario_id, estado, plan FROM suscripciones WHERE referencia = $1`,
 		referencia,
-	).Scan(&usuarioID, &estado)
+	).Scan(&usuarioID, &estado, &planSuscripcion)
 	if err == sql.ErrNoRows {
 		return false, nil
 	}
@@ -166,18 +256,24 @@ func ActivarSuscripcion(referencia, transaccionID string) (bool, error) {
 		return true, nil // idempotente
 	}
 
+	planDestino := NormalizarPlan(planSuscripcion.String)
+	if planDestino == PlanFree {
+		// Suscripciones legadas sin plan: eran Pro.
+		planDestino = PlanPro
+	}
+
 	if _, err := config.DB.Exec(
-		`UPDATE suscripciones SET estado = 'pagada', pagada_en = CURRENT_TIMESTAMP, transaccion = NULLIF($2, '')
+		`UPDATE suscripciones SET estado = 'pagada', pagada_en = CURRENT_TIMESTAMP, transaccion = NULLIF($2, ''), plan = $3
 		  WHERE referencia = $1`,
-		referencia, transaccionID,
+		referencia, transaccionID, planDestino,
 	); err != nil {
 		return false, err
 	}
 
 	// Vigencia: 1 mes desde el pago.
 	_, err = config.DB.Exec(
-		`UPDATE usuarios SET plan = 'pro', plan_expira_en = CURRENT_TIMESTAMP + INTERVAL '1 month' WHERE id = $1`,
-		usuarioID,
+		`UPDATE usuarios SET plan = $2, plan_expira_en = CURRENT_TIMESTAMP + INTERVAL '1 month' WHERE id = $1`,
+		usuarioID, planDestino,
 	)
 	if err != nil {
 		return false, err
@@ -214,7 +310,8 @@ func SimularPagoPro(c *fiber.Ctx) error {
 	}
 
 	perfil, _ := perfilUsuario(usuarioID)
-	return c.JSON(fiber.Map{"mensaje": "Plan Pro activado (simulación)", "usuario": perfil})
+	planActivado, _ := perfil["plan"].(string)
+	return c.JSON(fiber.Map{"mensaje": "Plan " + NombrePlan(planActivado) + " activado (simulación)", "usuario": perfil})
 }
 
 // CancelarSuscripcion vuelve al plan gratuito al final del periodo.
@@ -223,14 +320,14 @@ func CancelarSuscripcion(c *fiber.Ctx) error {
 	usuarioID, _ := c.Locals("usuario_id").(string)
 
 	res, err := config.DB.Exec(
-		`UPDATE usuarios SET plan = 'free', plan_expira_en = NULL WHERE id = $1 AND plan = 'pro'`,
+		`UPDATE usuarios SET plan = 'free', plan_expira_en = NULL WHERE id = $1 AND plan IN ('pro', 'business')`,
 		usuarioID,
 	)
 	if err != nil {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "No se pudo cancelar el plan"})
 	}
 	if affected, _ := res.RowsAffected(); affected == 0 {
-		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": "No tienes un plan Pro activo"})
+		return c.Status(http.StatusConflict).JSON(fiber.Map{"error": "No tienes un plan de pago activo"})
 	}
 
 	perfil, _ := perfilUsuario(usuarioID)

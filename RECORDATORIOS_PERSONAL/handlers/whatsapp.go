@@ -304,11 +304,24 @@ func EnviarRecordatorioWhatsAppFactura(c *fiber.Ctx) error {
 		return c.Status(http.StatusInternalServerError).JSON(fiber.Map{"error": "Error consultando las cuotas", "detalle": err.Error()})
 	}
 
-	// Límite del plan gratuito (mismo cupo que el email).
-	if plan != "pro" {
-		if usados := RecordatoriosUsadosMes(usuarioID); usados >= LimiteRecordatoriosFree {
+	plan = NormalizarPlan(plan)
+
+	// WhatsApp es beneficio de pago: el plan Free solo usa email.
+	if !PuedeUsarWhatsApp(plan) {
+		return c.Status(http.StatusPaymentRequired).JSON(fiber.Map{
+			"error": "Los recordatorios por WhatsApp son del plan Pro en adelante. Actualiza tu plan para usar este canal.",
+			"plan":  plan,
+		})
+	}
+
+	// Límite del plan (mismo cupo que el email).
+	if limite := LimiteRecordatoriosPorPlan(plan); limite >= 0 {
+		if usados := RecordatoriosUsadosMes(usuarioID); usados >= limite {
 			return c.Status(http.StatusPaymentRequired).JSON(fiber.Map{
-				"error": "Límite del plan gratuito alcanzado (20 recordatorios/mes). Actualiza a Pro para continuar.",
+				"error":  "Límite del plan Gratuito alcanzado (10 recordatorios/mes). Actualiza a Pro para continuar.",
+				"limite": limite,
+				"usados": usados,
+				"plan":   plan,
 			})
 		}
 	}

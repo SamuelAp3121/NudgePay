@@ -81,15 +81,9 @@ func perfilUsuario(usuarioID string) (fiber.Map, error) {
 		return nil, err
 	}
 
-	planActual := plan.String
-	if planActual == "" {
-		planActual = "free"
-	}
+	planActual := NormalizarPlan(plan.String)
 
-	limite := LimiteRecordatoriosFree
-	if planActual == "pro" {
-		limite = -1
-	}
+	limite := LimiteRecordatoriosPorPlan(planActual)
 
 	rolActual := rol.String
 	if rolActual == "" {
@@ -103,6 +97,12 @@ func perfilUsuario(usuarioID string) (fiber.Map, error) {
 		"rol":                  rolActual,
 		"recordatorios_usados": RecordatoriosUsadosMes(usuarioID),
 		"limite_recordatorios": limite,
+		"limite_facturas":      LimiteFacturasPorPlan(planActual),
+		"max_cuotas":           MaxCuotasPorPlan(planActual),
+		"whatsapp":             PuedeUsarWhatsApp(planActual),
+		"plantilla":            PuedePersonalizarPlantilla(planActual),
+		"reportes":             PuedeVerReportes(planActual),
+		"ventana_auto_dias":    VentanaAutoDias(planActual),
 	}, nil
 }
 

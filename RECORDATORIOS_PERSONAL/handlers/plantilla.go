@@ -40,8 +40,15 @@ func ObtenerPlantilla(c *fiber.Ctx) error {
 
 // ActualizarPlantilla guarda la plantilla de mensaje del usuario autenticado.
 // PUT /api/v1/plantilla  { "plantilla_mensaje": "Hola {nombre}, ..." }
+// Personalizar la plantilla es beneficio de pago: el plan Free usa el texto
+// por defecto.
 func ActualizarPlantilla(c *fiber.Ctx) error {
 	usuarioID, _ := c.Locals("usuario_id").(string)
+	plan, _ := c.Locals("plan").(string)
+	if !PuedePersonalizarPlantilla(plan) {
+		return c.Status(http.StatusPaymentRequired).JSON(fiber.Map{
+			"error": "Personalizar la plantilla es del plan Pro en adelante. Actualiza tu plan para usar tus propios mensajes.",
+		})}
 
 	var body struct {
 		PlantillaMensaje string `json:"plantilla_mensaje"`
