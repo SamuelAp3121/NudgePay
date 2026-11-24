@@ -11,7 +11,8 @@ import { getWhatsAppConfig, sendWhatsAppTest, updateWhatsAppConfig } from '@/lib
  * Si el usuario no configura sus credenciales, se usan las globales del
  * backend. El token nunca se devuelve al cliente: solo se indica si existe.
  */
-export default function WhatsAppCard() {
+export default function WhatsAppCard({ plan = 'free' } = {}) {
+  const esGratis = String(plan || 'free').toLowerCase() === 'free';
   const [config, setConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -110,6 +111,15 @@ export default function WhatsAppCard() {
           <p className="text-sm text-slate-500">Recordatorios por WhatsApp Business (Meta Cloud API).</p>
         </div>
       </div>
+
+      {esGratis && (
+        <Alert type="warning" className="mt-4">
+          Los recordatorios por WhatsApp son del plan Pro en adelante.{' '}
+          <a href="/billing" className="font-semibold underline underline-offset-2 hover:no-underline">
+            Ver planes
+          </a>
+        </Alert>
+      )}
 
       {notice && (
         <Alert type={notice.type} className="mt-4" onClose={() => setNotice(null)}>

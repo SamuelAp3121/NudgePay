@@ -25,6 +25,8 @@ const INITIAL = {
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
 const MAX_CUOTAS = 60;
+const MAX_CUOTAS_FREE = 3;
+const MAX_CUOTAS_PRO = 12;
 
 /** Valida un teléfono internacional: solo dígitos, 8-15, sin '+' ni espacios. */
 function telefonoValido(valor) {
@@ -61,10 +63,14 @@ function validate(values) {
   }
 
   const cuotas = Number(values.cuotas);
+  const tope = values._maxCuotas || MAX_CUOTAS;
   if (!Number.isInteger(cuotas) || cuotas < 1) {
     errors.cuotas = 'Mínimo 1 cuota.';
-  } else if (cuotas > MAX_CUOTAS) {
-    errors.cuotas = `Máximo ${MAX_CUOTAS} cuotas.`;
+  } else if (cuotas > tope) {
+    errors.cuotas =
+      tope < MAX_CUOTAS
+        ? `Tu plan permite hasta ${tope} cuotas. Actualiza para más.`
+        : `Máximo ${MAX_CUOTAS} cuotas.`;
   }
 
   if (!values.fecha_vencimiento) {
@@ -96,8 +102,12 @@ function addMonths(isoDate, months) {
 /**
  * Formulario de creación de factura (pago único o por cuotas).
  * `onSubmit` recibe el payload listo para enviar al backend y debe devolver una promesa.
+ * `plan` limita las cuotas en el cliente (el backend vuelve a validar): Free = 3, Pro = 12, Business = 60.
  */
-export default function FacturaForm({ onSubmit, onCancel }) {
+export default function FacturaForm({ onSubmit, onCancel, plan = 'free' }) {
+  const planNorm = String(plan || 'free').toLowerCase();
+  const maxCuotasPlan =
+    planNorm === 'business' ? MAX_CUOTAS : planNorm === 'pro' ? MAX_CUOTAS_PRO : MAX_CUOTAS_FREE;
   const [values, setValues] = useState(INITIAL);
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
@@ -112,7 +122,7 @@ export default function FacturaForm({ onSubmit, onCancel }) {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    const nextErrors = validate(values);
+    const nextErrors = validate({ ...values, _maxCuotas: maxCuotasPlan });
     setErrors(nextErrors);
     if (Object.keys(nextErrors).length > 0) return;
 
@@ -330,7 +340,7 @@ export default function FacturaForm({ onSubmit, onCancel }) {
             type="number"
             inputMode="numeric"
             min="1"
-            max={MAX_CUOTAS}
+            max={maxCuotasPlan}
             step="1"
             value={values.cuotas}
             onChange={handleChange('cuotas')}
@@ -340,7 +350,17 @@ export default function FacturaForm({ onSubmit, onCancel }) {
           {errors.cuotas ? (
             <p className="field-error">{errors.cuotas}</p>
           ) : (
-            <p className="mt-1.5 text-xs text-slate-400">1 = pago único. Máximo {MAX_CUOTAS}.</p>
+            <p className="mt-1.5 text-xs text-slate-400">
+              1 = pago único. Tu plan permite hasta {maxCuotasPlan}.
+              {maxCuotasPlan < MAX_CUOTAS && (
+                <>
+                  {' '}
+                  <a href="/billing" className="font-medium text-brand-600 hover:underline">
+                    Actualiza para más
+                  </a>
+                </>
+              )}
+            </p>
           )}
         </div>
 

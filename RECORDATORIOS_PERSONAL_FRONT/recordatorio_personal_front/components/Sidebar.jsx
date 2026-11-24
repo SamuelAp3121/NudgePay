@@ -17,6 +17,7 @@ import { signOut, useSession } from '@/lib/auth';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', description: 'Facturas y recordatorios', Icon: IconDashboard },
+  { href: '/reportes', label: 'Reportes', description: 'Cobros y exportación CSV', Icon: IconBilling },
   { href: '/settings', label: 'Configuración', description: 'Cuenta y plantillas', Icon: IconSettings },
   { href: '/billing', label: 'Facturación', description: 'Plan y suscripción', Icon: IconBilling },
 ];
@@ -152,8 +153,10 @@ export default function Sidebar() {
               {user?.email || 'Sesión activa'}
             </p>
             <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              {admin ? 'Administrador' : `Plan ${user?.plan === 'pro' ? 'Pro' : 'Gratuito'}`} · sesión
-              segura por cookie
+              {admin
+                ? 'Administrador'
+                : `Plan ${user?.plan === 'business' ? 'Business' : user?.plan === 'pro' ? 'Pro' : 'Gratuito'}`}{' '}
+              · sesión segura por cookie
             </p>
           </div>
           <button

@@ -302,6 +302,45 @@ export function crearCheckout(plan = 'pro', options = {}) {
   return apiFetch('/api/v1/billing/checkout', { ...options, method: 'POST', body: { plan } });
 }
 
+/** GET /api/v1/reportes/resumen → métricas de cobro (Pro/Business; Free = 402). */
+export function getReporteResumen({ desde, hasta } = {}, options = {}) {
+  return apiFetch(`/api/v1/reportes/resumen${qs({ desde, hasta })}`, options);
+}
+
+/**
+ * GET /api/v1/reportes/csv → descarga el CSV de facturas del rango.
+ * Hace el fetch con cookies y dispara la descarga en el navegador.
+ */
+export async function descargarReporteCSV({ desde, hasta, estado } = {}, options = {}) {
+  const response = await fetch(`${API_URL}/api/v1/reportes/csv${qs({ desde, hasta, estado })}`, {
+    credentials: 'include',
+    headers: { Accept: 'text/csv' },
+    signal: options.signal,
+  });
+  if (!response.ok) {
+    let message = `Error ${response.status} al descargar el reporte.`;
+    try {
+      const data = await response.json();
+      if (data?.error) message = data.error;
+    } catch {
+      /* respuesta no JSON */
+    }
+    throw new ApiError(message, response.status);
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const disposition = response.headers.get('content-disposition') || '';
+  const match = disposition.match(/filename="?([^"]+)"?/);
+  a.download = match?.[1] || 'toquepay-reporte.csv';
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 5000);
+  return true;
+}
+
 /** POST /api/v1/billing/simular → activa Pro sin pasarela (solo desarrollo). */
 export function simularPagoPro(referencia, options = {}) {
   return apiFetch('/api/v1/billing/simular', { ...options, method: 'POST', body: { referencia } });

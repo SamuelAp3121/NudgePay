@@ -11,6 +11,7 @@ const FILTROS = [
   { value: '', label: 'Todos los planes' },
   { value: 'free', label: 'Plan Free' },
   { value: 'pro', label: 'Plan Pro' },
+  { value: 'business', label: 'Plan Business' },
 ];
 
 export default function AdminUsuariosPage() {
@@ -152,7 +153,7 @@ export default function AdminUsuariosPage() {
                             : 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200'
                           }`}
                       >
-                        {usuario.plan === 'pro' ? 'Pro' : 'Free'}
+                        {usuario.plan === 'business' ? 'Business' : usuario.plan === 'pro' ? 'Pro' : 'Free'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-600">

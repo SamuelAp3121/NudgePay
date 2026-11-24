@@ -167,6 +167,8 @@ export default function AdminUsuarioDetallePage() {
   const suscripciones = data?.suscripciones || [];
   const consumo = data?.consumo || [];
   const esPro = usuario.plan === 'pro';
+  const esBusiness = usuario.plan === 'business';
+  const esPago = esPro || esBusiness;
   const esAdmin = usuario.rol === 'admin';
 
   return (
@@ -189,10 +191,10 @@ export default function AdminUsuarioDetallePage() {
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="truncate text-xl font-bold tracking-tight text-slate-900">{usuario.email}</h2>
               <span
-                className={`badge ${esPro ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200'
+                className={`badge ${esPago ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200'
                   }`}
               >
-                {esPro ? 'Pro' : 'Free'}
+                {esBusiness ? 'Business' : esPro ? 'Pro' : 'Free'}
               </span>
               {esAdmin && <span className="badge bg-slate-900 text-white">Admin</span>}
               {usuario.suspendido && (
@@ -510,8 +512,19 @@ export default function AdminUsuarioDetallePage() {
               </button>
               <button
                 type="button"
+                onClick={() =>
+                  run('plan-business', () => adminCambiarPlan(id, 'business', 30), 'Plan Business activado por 30 días.')
+                }
+                disabled={Boolean(working) || esBusiness}
+                className="btn-primary btn-sm"
+              >
+                {working === 'plan-business' ? <Spinner className="h-3.5 w-3.5" label="Guardando" /> : <IconCheckCircle className="h-3.5 w-3.5" />}
+                Activar Business (30 días)
+              </button>
+              <button
+                type="button"
                 onClick={() => run('plan-free', () => adminCambiarPlan(id, 'free'), 'Plan cambiado a Free.')}
-                disabled={Boolean(working) || !esPro}
+                disabled={Boolean(working) || !esPago}
                 className="btn-secondary btn-sm"
               >
                 Pasar a Free

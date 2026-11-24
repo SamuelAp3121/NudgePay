@@ -2,7 +2,7 @@
 
 import { Suspense, useCallback, useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
-import PlanUsageCard, { normalizePlan } from '@/components/PlanUsageCard';
+import PlanUsageCard, { isPaidPlan, normalizePlan, planLabel } from '@/components/PlanUsageCard';
 import { Alert, Modal, PageHeader, Spinner } from '@/components/ui';
 import { IconCheck, IconSparkles } from '@/components/icons';
 import {
@@ -37,11 +37,12 @@ const PLANS = [
     name: 'Gratuito',
     price: '$0',
     period: 'para siempre',
-    description: 'Ideal para probar ToquePay con tus primeros clientes.',
+    description: 'Para probar ToquePay con tus primeros clientes.',
     features: [
-      'Hasta 20 recordatorios al mes',
-      'Facturas ilimitadas',
-      'Recordatorios automáticos por email',
+      '10 recordatorios al mes (solo email)',
+      'Hasta 10 facturas pendientes',
+      'Hasta 3 cuotas por factura',
+      'Recordatorios automáticos 1 día antes',
       'Panel de facturas y estados',
     ],
     cta: 'Plan actual',
@@ -49,20 +50,36 @@ const PLANS = [
   {
     id: 'pro',
     name: 'Pro',
-    // El precio real lo define el backend (precio_cop + moneda). El valor fijo
-    // '$19' (USD) confundía: el cobro real se hace en COP ($19.900).
     price: null,
     period: 'por mes',
     description: 'Para freelancers y negocios que cobran de forma recurrente.',
     features: [
-      'Recordatorios ilimitados',
+      'Recordatorios ilimitados (email + WhatsApp)',
       'Facturas ilimitadas',
-      'Recordatorios programados (7, 3 y 1 día antes)',
+      'Hasta 12 cuotas por factura',
+      'Recordatorios automáticos 7, 3 y 1 día antes',
+      'Plantilla de mensaje personalizable',
+      'Reportes de cobro + exportación CSV',
       'Soporte prioritario por email',
-      'Exportación de reportes',
     ],
     cta: 'Actualizar a Pro',
     highlighted: true,
+  },
+  {
+    id: 'business',
+    name: 'Business',
+    price: null,
+    period: 'por mes',
+    description: 'Para negocios con más volumen y necesidad de control.',
+    features: [
+      'Todo lo del plan Pro',
+      'Hasta 60 cuotas por factura',
+      'Recordatorios automáticos desde 7 días antes',
+      'Reportes avanzados: efectividad y top deudores',
+      'Exportación CSV con filtros',
+      'Soporte prioritario',
+    ],
+    cta: 'Actualizar a Business',
   },
 ];
 
@@ -70,12 +87,12 @@ function BillingContent() {
   const searchParams = useSearchParams();
   const { user } = useSession();
   const [plan, setPlan] = useState('free');
-  const [usage, setUsage] = useState({ plan: 'free', used: 0, limit: 20 });
+  const [usage, setUsage] = useState({ plan: 'free', used: 0, limit: 10 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [checkoutPlan, setCheckoutPlan] = useState(null);
   const [notice, setNotice] = useState(null);
-  const [pasarela, setPasarela] = useState({ configurada: false, precioCop: 0, moneda: 'COP' });
+  const [pasarela, setPasarela] = useState({ configurada: false, precioCop: 0, precioBusinessCop: 0, moneda: 'COP' });
   const [orden, setOrden] = useState(null); // datos del checkout pendiente
   const [working, setWorking] = useState(false);
   const [historial, setHistorial] = useState([]);
@@ -87,17 +104,21 @@ function BillingContent() {
       const data = await getSuscripcion();
       const me = data?.usuario || data?.user || data?.data || data || {};
       const currentPlan = normalizePlan(me.plan ?? me.plan_actual ?? me.planActual);
-      const limit = Number(me.limite_recordatorios ?? me.reminders_limit ?? 20);
+      const limit = Number(me.limite_recordatorios ?? me.reminders_limit ?? 10);
+      const limiteFacturas = Number(me.limite_facturas ?? -1);
       setPlan(currentPlan);
       setUsage({
         plan: currentPlan,
         used: Number(me.recordatorios_usados ?? me.reminders_used ?? me.recordatorios ?? 0),
         // El backend devuelve -1 para planes ilimitados
-        limit: limit > 0 ? limit : 20,
+        limit: limit > 0 ? limit : 10,
+        limiteFacturas: limiteFacturas >= 0 ? limiteFacturas : Infinity,
+        maxCuotas: Number(me.max_cuotas ?? 3),
       });
       setPasarela({
         configurada: Boolean(data?.configurada),
         precioCop: Number(data?.precio_cop || 0),
+        precioBusinessCop: Number(data?.precio_business_cop || 0),
         moneda: data?.moneda || 'COP',
       });
       setHistorial(data?.suscripciones || []);
@@ -134,10 +155,11 @@ function BillingContent() {
 
   /** Abre el checkout de Wompi con los datos firmados por el backend. */
   const handleUpgrade = async () => {
+    if (!checkoutPlan) return;
     setWorking(true);
     setNotice(null);
     try {
-      const data = await crearCheckout('pro');
+      const data = await crearCheckout(checkoutPlan.id);
 
       // Verificación dura: si el backend no devolvió los datos firmados
       // (401 de sesión expirada, 503 sin credenciales, etc.), no seguimos.
@@ -186,7 +208,7 @@ function BillingContent() {
     }
   };
 
-  /** Activa Pro sin pasarela (solo si el backend lo permite en desarrollo). */
+  /** Activa el plan sin pasarela (solo si el backend lo permite en desarrollo). */
   const handleSimular = async () => {
     if (!orden) return;
     setWorking(true);
@@ -195,7 +217,7 @@ function BillingContent() {
       await simularPagoPro(orden.referencia);
       setCheckoutPlan(null);
       setOrden(null);
-      setNotice({ type: 'success', title: 'Plan Pro activado', message: 'Recordatorios ilimitados habilitados.' });
+      setNotice({ type: 'success', title: `Plan ${planLabel(orden.plan)} activado`, message: 'Recordatorios ilimitados habilitados.' });
       await loadPlan();
     } catch (err) {
       setNotice({ type: 'error', title: 'No se pudo activar', message: err?.message || 'Error al activar el plan.' });
@@ -216,6 +238,12 @@ function BillingContent() {
     } finally {
       setWorking(false);
     }
+  };
+
+  const precioDe = (item) => {
+    if (item.id === 'pro' && pasarela.precioCop > 0) return formatearPrecio(pasarela.precioCop, pasarela.moneda);
+    if (item.id === 'business' && pasarela.precioBusinessCop > 0) return formatearPrecio(pasarela.precioBusinessCop, pasarela.moneda);
+    return item.price;
   };
 
   return (
@@ -239,9 +267,10 @@ function BillingContent() {
 
       <div id="planes" className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-3">
             {PLANS.map((item) => {
               const isCurrent = plan === item.id;
+              const esPago = isPaidPlan(plan);
               return (
                 <div
                   key={item.id}
@@ -268,9 +297,7 @@ function BillingContent() {
 
                   <div className="mt-5 flex items-baseline gap-1.5">
                     <span className="text-4xl font-bold tracking-tight text-slate-900">
-                      {item.id === 'pro' && pasarela.precioCop > 0
-                        ? formatearPrecio(pasarela.precioCop, pasarela.moneda)
-                        : item.price}
+                      {precioDe(item) ?? '—'}
                     </span>
                     <span className="text-sm text-slate-500">/ {item.period}</span>
                   </div>
@@ -288,7 +315,7 @@ function BillingContent() {
 
                   <button
                     type="button"
-                    disabled={isCurrent || loading}
+                    disabled={isCurrent || loading || (item.id === 'free' && esPago)}
                     onClick={() => setCheckoutPlan(item)}
                     className={`mt-6 w-full ${item.highlighted && !isCurrent ? 'btn-primary' : 'btn-secondary'}`}
                   >
@@ -306,8 +333,8 @@ function BillingContent() {
           <section className="card p-6">
             <h2 className="text-base font-semibold text-slate-900">Suscripción</h2>
             <p className="mt-1 text-sm text-slate-500">
-              {plan === 'pro'
-                ? 'Tu plan Pro está activo: recordatorios ilimitados.'
+              {isPaidPlan(plan)
+                ? `Tu plan ${planLabel(plan)} está activo: recordatorios ilimitados.`
                 : 'Pagos procesados por Wompi (tarjeta, PSE y Nequi).'}
             </p>
 
@@ -317,7 +344,7 @@ function BillingContent() {
               </p>
             )}
 
-            {plan === 'pro' ? (
+            {isPaidPlan(plan) ? (
               <button
                 type="button"
                 onClick={handleCancel}
@@ -409,14 +436,12 @@ function BillingContent() {
           <div className="flex items-center justify-between">
             <span>Plan {checkoutPlan?.name}</span>
             <span className="font-semibold text-slate-900">
-              {checkoutPlan?.id === 'pro' && pasarela.precioCop > 0
-                ? formatearPrecio(pasarela.precioCop, pasarela.moneda)
-                : `${checkoutPlan?.price ?? ''} / ${checkoutPlan?.period ?? ''}`}
+              {`${precioDe(checkoutPlan || {}) ?? ''} / ${checkoutPlan?.period ?? ''}`}
             </span>
           </div>
           {pasarela.precioCop > 0 && (
             <p className="mt-1 text-xs text-slate-500">
-              Cobro en {pasarela.moneda}: {formatearPrecio(pasarela.precioCop, pasarela.moneda)}
+              Cobro en {pasarela.moneda}: {precioDe(checkoutPlan || {})}
             </p>
           )}
           <p className="mt-2 text-xs text-slate-500">

@@ -5,6 +5,49 @@ import Link from 'next/link';
 import { IconMail } from '@/components/icons';
 import { useSession } from '@/lib/auth';
 
+const PLANES = [
+  {
+    nombre: 'Gratuito',
+    precio: '$0',
+    periodo: 'para siempre',
+    items: [
+      '10 recordatorios al mes por email',
+      'Hasta 10 facturas pendientes',
+      'Hasta 3 cuotas por factura',
+      'Avisos 1 día antes del vencimiento',
+    ],
+    cta: 'Empezar gratis',
+    destacado: false,
+  },
+  {
+    nombre: 'Pro',
+    precio: '$19.900',
+    periodo: 'COP / mes',
+    items: [
+      'Recordatorios ilimitados (email + WhatsApp)',
+      'Facturas ilimitadas y hasta 12 cuotas',
+      'Avisos 7, 3 y 1 día antes',
+      'Plantilla personalizable',
+      'Reportes de cobro + CSV',
+    ],
+    cta: 'Probar Pro',
+    destacado: true,
+  },
+  {
+    nombre: 'Business',
+    precio: '$49.900',
+    periodo: 'COP / mes',
+    items: [
+      'Todo lo de Pro',
+      'Hasta 60 cuotas por factura',
+      'Reportes avanzados y top deudores',
+      'Exportación CSV con filtros',
+    ],
+    cta: 'Probar Business',
+    destacado: false,
+  },
+];
+
 const CARACTERISTICAS = [
   {
     titulo: 'Recordatorios automáticos',
@@ -12,9 +55,14 @@ const CARACTERISTICAS = [
       'Envía recordatorios de facturas por email sin escribir un solo mensaje. Tú defines el calendario y ToquePay hace el seguimiento.',
   },
   {
-    titulo: 'Pagos en línea',
+    titulo: 'WhatsApp Business (Pro)',
     descripcion:
-      'Cada factura incluye un enlace de pago con Wompi: tarjeta, PSE y más. Tus clientes pagan en dos clics y tú lo ves al instante.',
+      'En los planes de pago los recordatorios también llegan por WhatsApp: más tasa de apertura, menos mora.',
+  },
+  {
+    titulo: 'Reportes de cobro (Pro)',
+    descripcion:
+      'Tasa de recuperación, montos cobrados vs pendientes y exportación a CSV. Business añade vencidas y top deudores.',
   },
   {
     titulo: 'Control de cuotas',
@@ -25,11 +73,6 @@ const CARACTERISTICAS = [
     titulo: 'Portal de pago para clientes',
     descripcion:
       'Un enlace único por factura donde tu cliente ve el detalle, el estado y paga directamente. Sin registros ni claves.',
-  },
-  {
-    titulo: 'Panel de administración',
-    descripcion:
-      'Facturación, plan y suscripción siempre visibles. Si tu plan crece, cambias en un clic desde el panel.',
   },
   {
     titulo: 'Diseñado para freelancers',
@@ -159,6 +202,51 @@ export default function Landing() {
               >
                 <h3 className="text-base font-bold text-slate-900">{titulo}</h3>
                 <p className="mt-2 text-sm leading-relaxed text-slate-600">{descripcion}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Planes */}
+      <section className="border-y border-slate-200 bg-white py-16">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6">
+          <h2 className="text-center text-2xl font-bold text-slate-900 sm:text-3xl">
+            Planes simples, sin letra pequeña
+          </h2>
+          <p className="mx-auto mt-3 max-w-2xl text-center text-slate-600">
+            Empieza gratis y sube de plan cuando tus cobros lo pidan. Cancela cuando quieras.
+          </p>
+          <div className="mt-10 grid gap-5 md:grid-cols-3">
+            {PLANES.map((plan) => (
+              <div
+                key={plan.nombre}
+                className={`flex flex-col rounded-2xl border bg-white p-6 shadow-sm ${plan.destacado ? 'border-brand-300 ring-1 ring-brand-200' : 'border-slate-200'}`}
+              >
+                {plan.destacado && (
+                  <span className="mb-3 inline-flex w-fit items-center rounded-full bg-brand-600 px-3 py-1 text-xs font-semibold text-white">
+                    Recomendado
+                  </span>
+                )}
+                <h3 className="text-lg font-bold text-slate-900">{plan.nombre}</h3>
+                <p className="mt-2">
+                  <span className="text-3xl font-extrabold text-slate-900">{plan.precio}</span>{' '}
+                  <span className="text-sm text-slate-500">{plan.periodo}</span>
+                </p>
+                <ul className="mt-4 flex-1 space-y-2 text-sm text-slate-600">
+                  {plan.items.map((item) => (
+                    <li key={item} className="flex items-start gap-2">
+                      <span className="mt-0.5 text-emerald-600">✓</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+                <Link
+                  href="/register"
+                  className={`mt-6 w-full text-center ${plan.destacado ? 'rounded-xl bg-brand-600 px-6 py-3 text-base font-semibold text-white transition hover:bg-brand-700' : 'rounded-xl border border-slate-200 bg-white px-6 py-3 text-base font-semibold text-slate-700 transition hover:bg-slate-50'}`}
+                >
+                  {plan.cta}
+                </Link>
               </div>
             ))}
           </div>

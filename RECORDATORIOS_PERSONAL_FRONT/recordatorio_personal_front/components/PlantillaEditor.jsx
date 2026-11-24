@@ -28,7 +28,8 @@ function renderPreview(plantilla) {
   );
 }
 
-export default function PlantillaEditor() {
+export default function PlantillaEditor({ plan = 'free', onUpgrade } = {}) {
+  const esGratis = String(plan || 'free').toLowerCase() === 'free';
   const [plantilla, setPlantilla] = useState('');
   const [saved, setSaved] = useState('');
   const [loading, setLoading] = useState(true);
@@ -84,6 +85,11 @@ export default function PlantillaEditor() {
 
   const handleSave = async (event) => {
     event.preventDefault();
+    if (esGratis) {
+      setNotice({ type: 'error', message: 'Personalizar la plantilla es del plan Pro en adelante.' });
+      onUpgrade?.();
+      return;
+    }
     const value = plantilla.trim();
 
     if (!value) {
@@ -118,7 +124,9 @@ export default function PlantillaEditor() {
           <div>
             <h2 className="text-base font-semibold text-slate-900">Plantilla de recordatorio</h2>
             <p className="mt-0.5 text-sm text-slate-500">
-              Personaliza el mensaje que reciben tus clientes por email.
+              {esGratis
+                ? 'En el plan Gratuito se usa el mensaje por defecto. Personalízalo con Pro.'
+                : 'Personaliza el mensaje que reciben tus clientes por email.'}
             </p>
           </div>
         </div>

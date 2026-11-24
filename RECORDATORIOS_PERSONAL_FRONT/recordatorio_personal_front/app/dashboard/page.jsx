@@ -12,6 +12,7 @@ import {
   deleteFactura,
   enviarRecordatorio,
   enviarRecordatorioWhatsApp,
+  getSuscripcion,
   listFacturas,
   marcarPagada,
 } from '@/lib/api';
@@ -50,6 +51,22 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [notice, setNotice] = useState(null); // { type, title, message }
+  const [planInfo, setPlanInfo] = useState({ plan: 'free', limiteFacturas: 10 });
+
+  // Límites del plan para mostrar el aviso de cupo de facturas (Free).
+  useEffect(() => {
+    if (!ready) return;
+    getSuscripcion()
+      .then((data) => {
+        const me = data?.usuario || data?.user || data?.data || data || {};
+        const limite = Number(me.limite_facturas ?? -1);
+        setPlanInfo({
+          plan: String(me.plan || 'free'),
+          limiteFacturas: limite >= 0 ? limite : Infinity,
+        });
+      })
+      .catch(() => {});
+  }, [ready]);
   const [modalOpen, setModalOpen] = useState(false);
   const [updatingId, setUpdatingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
@@ -95,7 +112,21 @@ export default function DashboardPage() {
   /* ----------------------------- Acciones ------------------------------ */
 
   const handleCreate = async (payload) => {
-    const created = await createFactura(payload);
+    let created;
+    try {
+      created = await createFactura(payload);
+    } catch (error) {
+      if (error?.status === 402) {
+        setNotice({
+          type: 'error',
+          title: 'Límite de tu plan alcanzado',
+          message: `${error?.message || 'Alcanzaste el límite del plan Gratuito.'} Ve a Facturación para actualizar.` ,
+        });
+        setModalOpen(false);
+        return;
+      }
+      throw error;
+    }
     const normalized = created?.factura ? normalizeFactura(created.factura) : null;
 
     if (normalized?.id) {
@@ -292,7 +323,22 @@ export default function DashboardPage() {
           onClose={() => setNotice(null)}
           className="mb-6"
         >
-          {notice.message}
+          {notice.message}{' '}
+          {notice.type === 'error' && /plan|limite/i.test(`${notice.title} ${notice.message}`) && (
+            <Link href="/billing" className="font-semibold underline underline-offset-2 hover:no-underline">
+              Ver planes
+            </Link>
+          )}
+        </Alert>
+      )}
+
+      {!loading && planInfo.plan === 'free' && Number.isFinite(planInfo.limiteFacturas) && stats.pendientes >= planInfo.limiteFacturas - 2 && (
+        <Alert type="warning" title="Estás por llegar al límite del plan Gratuito" className="mb-6">
+          Tienes {stats.pendientes}/{planInfo.limiteFacturas} facturas pendientes. Marca alguna como pagada o{' '}
+          <Link href="/billing" className="font-semibold underline underline-offset-2 hover:no-underline">
+            actualiza a Pro
+          </Link>{' '}
+          para facturas ilimitadas.
         </Alert>
       )}
 
@@ -371,7 +417,7 @@ export default function DashboardPage() {
         title="Crear nueva factura"
         description="Puedes cobrarla de una vez o dividirla en cuotas mensuales."
       >
-        <FacturaForm onSubmit={handleCreate} onCancel={() => setModalOpen(false)} />
+        <FacturaForm onSubmit={handleCreate} onCancel={() => setModalOpen(false)} plan={planInfo.plan} />
       </Modal>
 
       {/* Modal: detalle de cuotas */}

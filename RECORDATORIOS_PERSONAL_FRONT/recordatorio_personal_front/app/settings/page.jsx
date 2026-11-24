@@ -15,7 +15,7 @@ import { useSession } from '@/lib/auth';
 export default function SettingsPage() {
   const { user } = useSession();
   const [apiKey, setApiKeyState] = useState('');
-  const [usage, setUsage] = useState({ plan: 'free', used: 0, limit: 20 });
+  const [usage, setUsage] = useState({ plan: 'free', used: 0, limit: 10 });
   const [loadingUsage, setLoadingUsage] = useState(true);
   const [usageError, setUsageError] = useState('');
   const [testingEmail, setTestingEmail] = useState(false);
@@ -28,12 +28,15 @@ export default function SettingsPage() {
       const data = await getMe();
       const me = data?.usuario || data?.user || data?.data || data || {};
       setApiKeyState(me.api_key || '');
-      const limit = Number(me.limite_recordatorios ?? me.reminders_limit ?? 20);
+      const limit = Number(me.limite_recordatorios ?? me.reminders_limit ?? 10);
+      const limiteFacturas = Number(me.limite_facturas ?? -1);
       setUsage({
         plan: normalizePlan(me.plan ?? me.plan_actual ?? me.planActual),
         used: Number(me.recordatorios_usados ?? me.reminders_used ?? me.recordatorios ?? 0),
         // El backend devuelve -1 para planes ilimitados
-        limit: limit > 0 ? limit : 20,
+        limit: limit > 0 ? limit : 10,
+        limiteFacturas: limiteFacturas >= 0 ? limiteFacturas : Infinity,
+        maxCuotas: Number(me.max_cuotas ?? 3),
       });
     } catch (error) {
       // Si el endpoint no existe o falla, mantenemos los valores por defecto
@@ -78,7 +81,7 @@ export default function SettingsPage() {
         <div className="space-y-6 lg:col-span-2">
           <PasswordCard email={user?.email} />
 
-          <PlantillaEditor />
+          <PlantillaEditor plan={usage.plan} />
 
           <ApiKeyCard apiKey={apiKey} onChange={setApiKeyState} />
 
@@ -172,7 +175,7 @@ export default function SettingsPage() {
             </Link>
           </section>
 
-          <WhatsAppCard />
+          <WhatsAppCard plan={usage.plan} />
 
           <section className="card p-6">
             <div className="flex items-center gap-3">

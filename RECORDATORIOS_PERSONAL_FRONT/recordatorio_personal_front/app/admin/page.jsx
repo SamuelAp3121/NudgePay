@@ -134,7 +134,7 @@ export default function AdminResumenPage() {
         <StatCard
           label="Usuarios"
           value={usuarios.total ?? '—'}
-          hint={`${usuarios.pro ?? 0} Pro · ${usuarios.free ?? 0} Free · ${usuarios.nuevos_mes ?? 0} nuevos este mes`}
+          hint={`${usuarios.pro ?? 0} Pro · ${usuarios.business ?? 0} Business · ${usuarios.free ?? 0} Free · ${usuarios.nuevos_mes ?? 0} nuevos este mes`}
           tone="brand"
           icon={<IconUsers className="h-5 w-5" />}
         />
@@ -233,12 +233,12 @@ export default function AdminResumenPage() {
                     </td>
                     <td className="px-4 py-3">
                       <span
-                        className={`badge ${usuario.plan === 'pro'
+                        className={`badge ${usuario.plan === 'pro' || usuario.plan === 'business'
                             ? 'bg-brand-600 text-white'
                             : 'bg-slate-100 text-slate-700 ring-1 ring-inset ring-slate-200'
                           }`}
                       >
-                        {usuario.plan === 'pro' ? 'Pro' : 'Free'}
+                        {usuario.plan === 'business' ? 'Business' : usuario.plan === 'pro' ? 'Pro' : 'Free'}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-sm text-slate-600">
