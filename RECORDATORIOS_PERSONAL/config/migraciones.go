@@ -16,8 +16,13 @@ import (
 // ============================================================================
 
 var (
-	columnasOnce    sync.Once
-	columnasCache   = map[string]bool{}
+	whatsappOnce  sync.Once
+	adminOnce     sync.Once
+	columnasCache = map[string]bool{}
+	// NOTA: antes ambas comprobaciones compartían un único sync.Once, así que
+	// la segunda que se ejecutaba (normalmente la de admin) nunca corría y
+	// devolvía false aunque la migración SÍ estuviera aplicada. Por eso el log
+	// decía "falta la migración admin" con la tabla ya migrada.
 	migracionAplica bool
 	migracionAdmin  bool
 )
@@ -51,7 +56,7 @@ func columnaExiste(tabla, columna string) bool {
 // MigracionWhatsAppAplicada indica si la base tiene las columnas del módulo
 // de WhatsApp. Se comprueba una sola vez y se registra en el log.
 func MigracionWhatsAppAplicada() bool {
-	columnasOnce.Do(func() {
+	whatsappOnce.Do(func() {
 		migracionAplica = columnaExiste("facturas", "cliente_telefono") &&
 			columnaExiste("facturas", "canal_recordatorio") &&
 			columnaExiste("usuarios", "whatsapp_activo") &&
@@ -71,8 +76,10 @@ func MigracionWhatsAppAplicada() bool {
 // MigracionAdminAplicada indica si la base tiene las columnas del panel de
 // administración (rol, suspensión). Si falta, la autenticación degrada:
 // nadie tendría rol 'admin' y el panel /admin no sería accesible.
+// IMPORTANTE: tras aplicar la migración hay que reiniciar el backend,
+// porque el resultado se cachea una sola vez por proceso.
 func MigracionAdminAplicada() bool {
-	columnasOnce.Do(func() {
+	adminOnce.Do(func() {
 		migracionAdmin = columnaExiste("usuarios", "rol") && columnaExiste("usuarios", "suspendido")
 		if migracionAdmin {
 			log.Println("✅ Esquema Admin: columnas presentes")
