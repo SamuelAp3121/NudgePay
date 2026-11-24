@@ -14,7 +14,7 @@ const INITIAL = {
   moneda: DEFAULT_CURRENCY,
   cuotas: '1',
   fecha_vencimiento: '',
-  pago_link: true,
+  pago_link: false,
   pago_qr: false,
   pago_transfer: false,
   banco_nombre: '',
@@ -368,24 +368,11 @@ export default function FacturaForm({ onSubmit, onCancel }) {
           Medios de pago del cliente
         </legend>
 
-        <div className="space-y-2">
-          <label className="flex cursor-pointer items-start gap-3 rounded-lg p-2 transition hover:bg-slate-50">
-            <input
-              type="checkbox"
-              checked={values.pago_link}
-              onChange={(event) => setValues((prev) => ({ ...prev, pago_link: event.target.checked }))}
-              className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-            />
-            <span>
-              <span className="block text-sm font-medium text-slate-800">
-                Enlace de pago (tarjeta / PSE)
-              </span>
-              <span className="block text-xs text-slate-500">
-                El cliente paga en línea desde la página de la factura.
-              </span>
-            </span>
-          </label>
+        <p className="px-2 text-xs text-slate-500">
+          El cliente te paga directamente a ti (QR o transferencia). Sin pasarela.
+        </p>
 
+        <div className="mt-2 space-y-2">
           <label className="flex cursor-pointer items-start gap-3 rounded-lg p-2 transition hover:bg-slate-50">
             <input
               type="checkbox"

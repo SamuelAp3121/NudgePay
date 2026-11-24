@@ -183,26 +183,10 @@ return (
           </ul>
         </div>
 
-        {/* Medios de pago */}
+        {/* Medios de pago: QR (Bre-B / llave) y transferencia directa al
+            comercio. Sin pasarela: el cliente paga al dueño de la empresa. */}
         {pendientes.length > 0 && (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            {factura.mediosPago.link && (
-              <div className="rounded-xl border border-slate-200 p-4">
-                <h3 className="text-sm font-semibold text-slate-900">Pagar en línea</h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  Tarjeta de crédito, débito o PSE. Pago seguro.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => handlePay(proxima, 'pasarela')}
-                  disabled={payingNumero !== null}
-                  className="btn-primary mt-3 w-full"
-                >
-                  Pagar {formatCurrency(proxima?.monto || 0, moneda)}
-                </button>
-              </div>
-            )}
-
             {factura.mediosPago.qr && factura.qrPayload && (
               <div className="rounded-xl border border-slate-200 p-4">
                 <h3 className="text-sm font-semibold text-slate-900">Pagar con QR</h3>

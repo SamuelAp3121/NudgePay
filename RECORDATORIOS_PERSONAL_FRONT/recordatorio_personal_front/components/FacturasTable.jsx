@@ -210,9 +210,11 @@ export default function FacturasTable({
                               className="btn-secondary btn-sm"
                               aria-label={`Enviar recordatorio a ${factura.cliente}`}
                               title={
-                                factura.notificado
-                                  ? 'Ya se envió un recordatorio automático; puedes reenviarlo'
-                                  : 'Enviar recordatorio por email ahora'
+                                factura.canal === 'ambos' && factura.telefono
+                                  ? `Enviar recordatorio por email y WhatsApp a ${factura.telefono}`
+                                  : factura.notificado
+                                    ? 'Ya se envió un recordatorio automático; puedes reenviarlo'
+                                    : 'Enviar recordatorio ahora'
                               }
                             >
                               {isSending ? (
@@ -220,7 +222,9 @@ export default function FacturasTable({
                               ) : (
                                 <IconMail className="h-3.5 w-3.5 text-brand-600" />
                               )}
-                              <span className="hidden 2xl:inline">Recordar</span>
+                              <span className="hidden 2xl:inline">
+                                {factura.canal === 'ambos' && factura.telefono ? 'Recordar (email + WA)' : 'Recordar'}
+                              </span>
                             </button>
                             <button
                               type="button"

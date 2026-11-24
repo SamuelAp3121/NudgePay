@@ -148,17 +148,25 @@ export default function DashboardPage() {
     }
   };
 
+  // Enviar por email y (si la factura tiene teléfono y canal 'ambos') por
+  // WhatsApp en el mismo clic: el backend ya encadena el envío de WhatsApp
+  // en EnviarRecordatorio cuando hay teléfono del cliente.
   const handleSendReminder = async (factura) => {
     setSendingId(factura.id);
     try {
-      await enviarRecordatorio(factura.id);
+      const data = await enviarRecordatorio(factura.id);
       setFacturas((prev) =>
         prev.map((item) => (item.id === factura.id ? { ...item, notificado: true } : item))
       );
+      const porWhatsApp = data?.whatsapp_enviado;
       setNotice({
         type: 'success',
         title: 'Recordatorio enviado',
-        message: `Se envió el email de recordatorio a ${factura.email}.`,
+        message: porWhatsApp
+          ? `Se envió el recordatorio por email a ${factura.email} y por WhatsApp a ${data?.telefono || factura.telefono}.`
+          : data?.whatsapp_error
+            ? `Se envió el email a ${factura.email}, pero WhatsApp falló: ${data.whatsapp_error}`
+            : `Se envió el email de recordatorio a ${factura.email}.`,
       });
     } catch (error) {
       setNotice({
