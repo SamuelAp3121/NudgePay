@@ -144,9 +144,10 @@ func CrearFactura(c *fiber.Ctx) error {
 
 	f.Monto = redondear2(f.Monto)
 
-	// Si no se indica ningún medio de pago, se habilita el enlace de pago por defecto.
-	if !f.PagoLink && !f.PagoQR && !f.PagoTransfer {
-		f.PagoLink = true
+	// Si no se indica ningún medio de pago, se habilita la transferencia
+	// por defecto (el cliente paga directo al dueño, sin pasarela).
+	if !f.PagoQR && !f.PagoTransfer {
+		f.PagoTransfer = true
 	}
 
 	token, err := generarTokenPublico()
